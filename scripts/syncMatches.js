@@ -1,4 +1,5 @@
 // scripts/syncMatches.js
+require('dotenv').config();
 const admin = require('firebase-admin');
 const axios = require('axios');
 
@@ -11,6 +12,7 @@ if (!API_KEY) {
   console.error('❌ API_FOOTBALL_KEY não definida');
   process.exit(1);
 }
+
 
 // Mapeamento de nomes
 const teamNameMap = {
@@ -52,7 +54,7 @@ async function syncMatches() {
   console.log('🚀 Buscando jogos da Copa 2026 via API-FOOTBALL...');
   try {
     const response = await axios.get('https://v3.football.api-sports.io/fixtures', {
-      headers: { 'a43dd2c524991ea0a580de75b369596e': API_KEY },
+      headers: { 'x-apisports-key': API_KEY },
       params: { league: 1, season: 2026 }
     });
     const fixtures = response.data.response;

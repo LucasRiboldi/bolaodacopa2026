@@ -16,6 +16,7 @@ export default function AdminPanel() {
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,6 +100,53 @@ export default function AdminPanel() {
       setMessage(`✅ ${total} jogos criados com sucesso!`);
       refreshMatches();
     } catch (error) { console.error(error); setMessage("❌ Erro ao criar os jogos."); } finally { setTimeout(() => setMessage(""), 3000); }
+  };
+
+  // Nova função: importar jogos a partir de um arquivo JSON (matches-data.json)
+  const importMatchesFromJSON = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setMessage("📂 Lendo arquivo JSON...");
+    try {
+      const text = await file.text();
+      const matchesData = JSON.parse(text);
+      if (!Array.isArray(matchesData)) throw new Error("Arquivo JSON deve conter um array de jogos.");
+      setMessage(`📋 ${matchesData.length} jogos encontrados. Importando...`);
+      let batch = writeBatch(db);
+      let count = 0;
+      let commitCount = 0;
+      for (const match of matchesData) {
+        if (!match.id) {
+          console.warn("Jogo sem ID ignorado:", match);
+          continue;
+        }
+        const docRef = doc(db, "matches", match.id);
+        batch.set(docRef, match, { merge: true });
+        count++;
+        // Firestore batch limit is 500
+        if (count % 500 === 0) {
+          await batch.commit();
+          commitCount++;
+          setMessage(`🔄 Lote ${commitCount} commitado (${count} documentos)`);
+          batch = writeBatch(db);
+        }
+      }
+      if (count % 500 !== 0) {
+        await batch.commit();
+        commitCount++;
+      }
+      setMessage(`✅ Importação concluída! ${count} jogos atualizados/criados.`);
+      refreshMatches(); // recarrega a lista
+    } catch (error) {
+      console.error(error);
+      setMessage(`❌ Erro ao importar: ${error.message}`);
+    } finally {
+      setImporting(false);
+      // Limpa o input para permitir novo upload do mesmo arquivo
+      event.target.value = "";
+      setTimeout(() => setMessage(""), 5000);
+    }
   };
 
   const calculateFullRanking = async () => {
@@ -281,7 +329,7 @@ export default function AdminPanel() {
 
   return (
     <div className="admin-panel">
-      <h1>🔧 Painel do Administrador</h1>
+      <h1 className="admin-title">🔧 Painel do Administrador</h1>
       {message && <div className="admin-message">{message}</div>}
       <div className="admin-tabs">
         <button className={activeTab === "groups" ? "active" : ""} onClick={() => setActiveTab("groups")}>📋 Fase de Grupos</button>
@@ -289,12 +337,21 @@ export default function AdminPanel() {
         <button className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>⚙️ Configurações</button>
         <button className={activeTab === "users" ? "active" : ""} onClick={() => setActiveTab("users")}>👥 Usuários</button>
       </div>
+
       {activeTab === "groups" && (
         <>
-          <div style={{ marginBottom: "1rem" }}><button onClick={createGroupStageMatches} className="sync-btn">🏁 Criar 72 jogos da fase de grupos</button></div>
+          <div style={{ marginBottom: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <button onClick={createGroupStageMatches} className="sync-btn">🏁 Criar 72 jogos da fase de grupos</button>
+            <label className="sync-btn" style={{ background: "#2c6e2c", color: "white", padding: "0.6rem 1.2rem", borderRadius: "40px", cursor: "pointer" }}>
+              📂 Importar jogos (JSON)
+              <input type="file" accept=".json" onChange={importMatchesFromJSON} disabled={importing} style={{ display: "none" }} />
+            </label>
+            {importing && <span style={{ marginLeft: "1rem" }}>⏳ Importando...</span>}
+          </div>
           <MatchList matches={groupMatches} roundTitle="📋 Jogos da Fase de Grupos" />
         </>
       )}
+
       {activeTab === "knockout" && (
         <div>
           <MatchList matches={knockoutMatches.round16} roundTitle="🏆 Oitavas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("round16", h, a, d, t, s)} />
@@ -303,6 +360,7 @@ export default function AdminPanel() {
           <MatchList matches={knockoutMatches.final} roundTitle="🏆 Final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("final", h, a, d, t, s)} />
         </div>
       )}
+
       {activeTab === "settings" && (
         <div className="admin-section settings-grid">
           <h2>⚙️ Configuração de Pontuação</h2>
@@ -333,6 +391,7 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
       {activeTab === "users" && (
         <div className="admin-section users-section">
           <h2>👥 Usuários cadastrados</h2>

@@ -116,30 +116,36 @@ function App() {
 
   if (loading) return <div className="loader-full">Carregando...</div>;
 
-  if (!user) {
-    return (
-      <div className="landing-container">
-        <div className="hero-section">
-          <div className="hero-icon">⚽🏆</div>
-          <h1>Bolão Copa do Mundo <span>2026</span></h1>
-          <p>Palpite os placares, acumule pontos e dispute o ranking com seus amigos.</p>
-          <button onClick={() => signInWithPopup(auth, googleProvider)} className="google-btn-hero">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
-            Entrar com Google
-          </button>
-          <div className="email-divider">ou</div>
-          <button onClick={() => setShowEmailModal(true)} className="email-btn-hero">
-            📧 Entrar com e-mail e senha
-          </button>
-          <p className="hero-note">Gratuito • Sem anúncios • Dados oficiais da API-FOOTBALL</p>
+  // src/App.jsx (trecho da renderização quando usuário não está logado)
+if (!user) {
+  return (
+    <div className="landing-container">
+      <div className="hero-card">
+        <div className="logo-wrapper">
+          <img src="/worldcup2026-logo.png" alt="Logo Copa 2026" className="landing-logo" />
         </div>
-        <div className="ranking-public"><Ranking /></div>
-        <div className="groups-public"><GroupStandings /></div>
-        {showEmailModal && <EmailLogin onClose={() => setShowEmailModal(false)} />}
+        <h1>Bolão <span>Copa 2026</span></h1>
+        <p>Palpite os placares, acumule pontos e dispute o ranking com seus amigos.</p>
+        <button onClick={() => signInWithPopup(auth, googleProvider)} className="google-btn-hero">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+          Entrar com Google
+        </button>
+        <div className="email-divider">ou</div>
+        <button onClick={() => setShowEmailModal(true)} className="email-btn-hero">
+          📧 Entrar com e-mail e senha
+        </button>
+        <p className="hero-note">Gratuito • Sem anúncios • Dados oficiais da API-FOOTBALL</p>
       </div>
-    );
-  }
-
+      <div className="ranking-public">
+        <Ranking />
+      </div>
+      <div className="groups-public">
+        <GroupStandings />
+      </div>
+      {showEmailModal && <EmailLogin onClose={() => setShowEmailModal(false)} />}
+    </div>
+  );
+}
   return (
     <div className="app">
       <header className="app-header">
