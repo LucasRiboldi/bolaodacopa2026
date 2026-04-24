@@ -1,0 +1,60 @@
+# Dependências
+node_modules/
+client/node_modules/
+scripts/node_modules/
+
+# Arquivos de ambiente
+.env
+client/.env
+.env.production
+
+# Chaves de serviço (NUNCA commitar)
+*.json
+!package.json
+!package-lock.json
+serviceAccountKey.json
+
+# Builds
+dist/
+client/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+firebase-debug.log
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules/
+.env
+dist/
+.DS_Store
+*.log
+firebase-debug.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
