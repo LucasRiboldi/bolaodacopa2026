@@ -102,6 +102,117 @@ export default function AdminPanel() {
     } catch (error) { console.error(error); setMessage("❌ Erro ao criar os jogos."); } finally { setTimeout(() => setMessage(""), 3000); }
   };
 
+// Cria os jogos da fase eliminatória (oitavas, quartas, semi, final, terceiro lugar)
+const createKnockoutMatches = async () => {
+  setMessage("🚀 Criando jogos do mata‑mata...");
+  try {
+    const batch = writeBatch(db);
+    const now = new Date();
+    const year = 2026; // Ajuste conforme necessário
+
+    // Oitavas de final (8 jogos)
+    for (let i = 1; i <= 8; i++) {
+      const id = `round16_${i}`;
+      const matchData = {
+        id,
+        round: "round16",
+        homeTeam: "TBD",
+        awayTeam: "TBD",
+        homeScore: null,
+        awayScore: null,
+        date: `2026-06-29`,
+        time: "15:00",
+        stadium: "Estádio a definir",
+        startTime: new Date(year, 5, 28 + i, 15, 0).toISOString(),
+        status: "Not Started",
+      };
+      const docRef = doc(db, "matches", id);
+      batch.set(docRef, matchData, { merge: true });
+    }
+
+    // Quartas de final (4 jogos)
+    for (let i = 1; i <= 4; i++) {
+      const id = `quarter_${i}`;
+      const matchData = {
+        id,
+        round: "quarter",
+        homeTeam: "TBD",
+        awayTeam: "TBD",
+        homeScore: null,
+        awayScore: null,
+        date: `2026-07-03`,
+        time: "15:00",
+        stadium: "Estádio a definir",
+        startTime: new Date(year, 6, 2 + i, 15, 0).toISOString(),
+        status: "Not Started",
+      };
+      const docRef = doc(db, "matches", id);
+      batch.set(docRef, matchData, { merge: true });
+    }
+
+    // Semifinais (2 jogos)
+    for (let i = 1; i <= 2; i++) {
+      const id = `semi_${i}`;
+      const matchData = {
+        id,
+        round: "semi",
+        homeTeam: "TBD",
+        awayTeam: "TBD",
+        homeScore: null,
+        awayScore: null,
+        date: `2026-07-08`,
+        time: "15:00",
+        stadium: "Estádio a definir",
+        startTime: new Date(year, 6, 7 + i, 15, 0).toISOString(),
+        status: "Not Started",
+      };
+      const docRef = doc(db, "matches", id);
+      batch.set(docRef, matchData, { merge: true });
+    }
+
+    // Final
+    const finalData = {
+      id: "final",
+      round: "final",
+      homeTeam: "TBD",
+      awayTeam: "TBD",
+      homeScore: null,
+      awayScore: null,
+      date: "2026-07-19",
+      time: "15:00",
+      stadium: "Estádio a definir",
+      startTime: new Date(year, 6, 19, 15, 0).toISOString(),
+      status: "Not Started",
+    };
+    batch.set(doc(db, "matches", "final"), finalData, { merge: true });
+
+    // Disputa de terceiro lugar
+    const thirdPlaceData = {
+      id: "third_place",
+      round: "third_place",
+      homeTeam: "TBD",
+      awayTeam: "TBD",
+      homeScore: null,
+      awayScore: null,
+      date: "2026-07-18",
+      time: "14:00",
+      stadium: "Estádio a definir",
+      startTime: new Date(year, 6, 18, 14, 0).toISOString(),
+      status: "Not Started",
+    };
+    batch.set(doc(db, "matches", "third_place"), thirdPlaceData, { merge: true });
+
+    await batch.commit();
+    setMessage("✅ Jogos do mata‑mata criados com sucesso!");
+    refreshMatches(); // recarrega as listas
+  } catch (error) {
+    console.error(error);
+    setMessage("❌ Erro ao criar jogos do mata‑mata.");
+  } finally {
+    setTimeout(() => setMessage(""), 3000);
+  }
+};
+
   // Nova função: importar jogos a partir de um arquivo JSON (matches-data.json)
   const importMatchesFromJSON = async (event) => {
     const file = event.target.files[0];
@@ -353,13 +464,18 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "knockout" && (
-        <div>
-          <MatchList matches={knockoutMatches.round16} roundTitle="🏆 Oitavas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("round16", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.quarter} roundTitle="🏆 Quartas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("quarter", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.semi} roundTitle="🏆 Semifinais" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("semi", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.final} roundTitle="🏆 Final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("final", h, a, d, t, s)} />
-        </div>
-      )}
+  <div>
+    <div style={{ marginBottom: "1rem" }}>
+      <button onClick={createKnockoutMatches} className="sync-btn" style={{ background: "#2c6e2c", color: "white" }}>
+        🏁 Criar jogos eliminatórios (oitavas, quartas, semi, final, 3º lugar)
+      </button>
+    </div>
+    <MatchList matches={knockoutMatches.round16} roundTitle="🏆 Oitavas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("round16", h, a, d, t, s)} />
+    <MatchList matches={knockoutMatches.quarter} roundTitle="🏆 Quartas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("quarter", h, a, d, t, s)} />
+    <MatchList matches={knockoutMatches.semi} roundTitle="🏆 Semifinais" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("semi", h, a, d, t, s)} />
+    <MatchList matches={knockoutMatches.final} roundTitle="🏆 Final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("final", h, a, d, t, s)} />
+  </div>
+)}
 
       {activeTab === "settings" && (
         <div className="admin-section settings-grid">

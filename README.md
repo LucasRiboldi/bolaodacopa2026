@@ -40,64 +40,14 @@ Tudo isso **gratuitamente**, usando apenas os planos gratuitos do Firebase e da 
 
 ---
 
-## ✨ Funcionalidades em detalhe
+## 🚀 Como rodar o projeto localmente (passo a passo)
 
-### 🧑‍🤝‍🧑 Usuários
-- Login com **Google** (um clique) ou **e‑mail/senha** (com registro)
-- Perfil pessoal com histórico de palpites e estatísticas detalhadas
-- Palpites avançados: classificação dos grupos, mata‑mata, bônus (semifinalistas, finalistas, campeão)
-
-### ⚽ Fase de grupos
-- Todos os 72 jogos em formato **planilha** (um por linha)
-- Campos de gols para mandante e visitante
-- Salvamento individual ou em massa
-- Bloqueio automático após o início da partida
-
-### 🏆 Mata‑mata
-- Usuário define os **dois classificados** de cada grupo (1º e 2º lugar)
-- O sistema gera automaticamente os confrontos das **oitavas de final**
-- Escolha dos vencedores → quartas → semi → final
-- Bônus extras: acertar semifinalistas, finalistas e campeão
-
-### 📊 Ranking
-- Pontuação **total** calculada pelo administrador (ou via GitHub Action)
-- Regras completas e configuráveis:
-  - Placar exato: 6 pontos
-  - Resultado correto (vitória/empate): 2 pontos
-  - 2 classificados do grupo (sem ordem): 5 pontos
-  - 1 classificado: 2 pontos
-  - Ordem correta: +3 pontos
-  - Mata‑mata: 4 / 6 / 10 / 12 pontos por fase
-  - Bônus: 5 / 7 / 12 pontos
-- Ranking atualizado ao vivo (usa coleção `rankings` do Firestore)
-
-### 🔧 Painel do Administrador
-- **Fase de Grupos**: visualizar/editar todos os jogos, criar os 72 jogos iniciais
-- **Mata‑mata**: adicionar/editar/remover jogos eliminatórios
-- **Configurações**: ajustar todos os critérios de pontuação (valores salvos no Firestore)
-- **Usuários**: listar todos os usuários, ver quantos palpites fizeram e se já preencheram mata‑mata
-- **Sincronização manual**: buscar resultados da API‑FOOTBALL e atualizar o banco
-- **Cálculo completo**: recalcular ranking somando placares + grupos + mata‑mata + bônus
-
-### 📱 Responsividade
-- Layout adaptado para desktop, tablet e celular
-- Tabelas com rolagem horizontal (no celular)
-- Menu e botões otimizados para toque
-
----
-
-## 🚀 Como rodar o projeto localmente
-
-### Pré‑requisitos
+### 1. Pré‑requisitos
 - **Node.js** (versão 18 ou superior) → [baixar aqui](https://nodejs.org/)
 - **npm** (já vem com o Node)
-- **Conta no Firebase** (gratuita)
+- **Conta no Firebase** (gratuita) – [console.firebase.google.com](https://console.firebase.google.com/)
 
-### Passo a passo
-
-1. **Clone o repositório**
-   ```bash
-   git clone https://github.com/LucasRiboldi/bolao-2026.git
-   cd bolao-2026
-
-   
+### 2. Clone o repositório
+```bash
+git clone https://github.com/LucasRiboldi/bolao-2026.git
+cd bolao-2026

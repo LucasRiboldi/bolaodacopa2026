@@ -1265,3 +1265,14 @@ button:active {
     font-size: 0.85rem;
   }
 }
+
+/* Informação adicional no bracket */
+.info-note {
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  background: #eef2ff;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--gray-muted);
+}
