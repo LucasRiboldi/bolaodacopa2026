@@ -23,8 +23,7 @@
 
 ## 🚀 Demo
 
-🔗 Em breve (ou adicione seu link aqui)  
-Ex: https://bolao-2026.web.app
+🔗 https://bolao2026-695ec.web.app/
 
 ---
 
@@ -43,14 +42,6 @@ Ex: https://bolao-2026.web.app
 ### 🧾 Palpites
 <p align="center">
   <img src="https://via.placeholder.com/900x500?text=Palpites" width="80%" />
-</p>
-
----
-
-## 🎬 Demonstração (GIF)
-
-<p align="center">
-  <img src="https://via.placeholder.com/900x500?text=GIF+Demo" width="80%" />
 </p>
 
 ---
@@ -85,26 +76,6 @@ Ex: https://bolao-2026.web.app
 
 ---
 
-### 📱 UX moderna
-
-- 100% responsivo
-- Interface limpa
-- Performance otimizada
-
----
-
-## 🧠 Arquitetura
-
-```mermaid
-graph TD
-A[Usuário] --> B[React App]
-B --> C[Firebase Auth]
-B --> D[Firestore]
-B --> E[API Football]
-```
-
----
-
 ## 🧰 Tecnologias
 
 <p align="center">
@@ -121,7 +92,11 @@ B --> E[API Football]
 
 ---
 
-## ⚙️ Instalação
+## ⚙️ Instalação – Passo a passo para colocar o bolão no ar (localmente)
+
+Siga estas etapas com calma – em menos de 10 minutos seu bolão estará rodando no localhost.
+
+
 
 ```bash
 # Clone o projeto
@@ -132,55 +107,85 @@ cd bolao-2026/client
 
 # Instale dependências
 npm install
-```
 
----
-
-## 🔑 Variáveis de ambiente
-
-Crie um `.env`:
-
-```env
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-VITE_API_FOOTBALL_KEY=
-```
-
----
-
-## ▶️ Rodando localmente
-
-```bash
+# Rodar localmente
 npm run dev
 ```
 
----
-
-## 🚀 Deploy
-
+Você verá algo como:
 ```bash
-npm run build
-firebase deploy
+  VITE v8.x.x  ready in xxx ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
 ```
+
+Abra http://localhost:5173 no seu navegador. Pronto, o bolão já está no ar! 🎉
 
 ---
 
 ## 📦 Estrutura
 
 ```bash
-client/
- ├── src/
- │   ├── components/
- │   ├── utils/
- │   ├── App.jsx
- │   └── main.jsx
- ├── public/
- └── package.json
+📦 root
+├── 📂 .github
+│   └── 📂 workflows
+│       ├── 🚀 deploy.yml
+│       └── 🔄 sync-matches.yml
+│
+├── 📂 client
+│   ├── 📂 public
+│   │   ├── 🖼 favicon.svg
+│   │   ├── 🖼 icons.svg
+│   │   └── 🏆 worldcup2026-logo.png
+│   │
+│   ├── 📂 src
+│   │   ├── 📂 components
+│   │   │   ├── 🧩 AdminPanel.jsx
+│   │   │   ├── 🎯 BonusPredictions.jsx
+│   │   │   ├── 🔐 EmailLogin.jsx
+│   │   │   ├── 📊 GroupClassificationPicker.jsx
+│   │   │   ├── 📅 GroupStageMatchesTable.jsx
+│   │   │   ├── 📈 GroupStandings.jsx
+│   │   │   ├── 🏆 KnockoutBracket.jsx
+│   │   │   ├── ⚽ MatchCard.jsx
+│   │   │   ├── 📋 Matches.jsx
+│   │   │   ├── 🥇 Ranking.jsx
+│   │   │   └── 👤 UserProfile.jsx
+│   │   │
+│   │   ├── 📂 utils
+│   │   ├── ⚛️ App.jsx
+│   │   ├── 🔥 firebase.js
+│   │   ├── 🎨 index.css
+│   │   └── 🚀 main.jsx
+│   │
+│   ├── ⚙️ .gitignore
+│   ├── 🌐 index.html
+│   ├── 📦 package.json
+│   ├── 🔒 package-lock.json
+│   └── ⚡ vite.config.js
+│
+├── 📂 scripts
+│   ├── 🧪 generate-test-bets.js
+│   ├── 🔄 syncMatches.js
+│   ├── 🔄 update-matches.js
+│   ├── 🌍 updateMatchesFromAPI.js
+│   ├── 📦 package.json
+│   └── 🔒 package-lock.json
+│
+├── 🔥 .firebaserc
+├── ⚙️ .gitignore
+├── 📘 README.md
+├── 📝 Recomendações.txt
+└── 🔐 firestore.rules
 ```
+
+## 🧠 Organização
+- client/ → Interface da aplicação (React + Vite)
+- components/ → Componentes reutilizáveis da UI
+- scripts/ → Scripts de automação e integração com API
+- .github/workflows/ → CI/CD e automações (deploy + sync de dados)
+- firebase → Configurações e regras de segurança
 
 ---
 
@@ -193,24 +198,69 @@ client/
 
 ---
 
-## 🧪 Qualidade
+## 📋 🗺️ Roadmap de atualizações
 
-- ESLint
-- Código modular
-- Hooks modernos
-- Arquitetura escalável
+- [ ] 🔥 Fase 0 – Correções imediatas
+- - [ ] Corrigir a exibição da data dos jogos – garantir que startTime seja sempre uma data futura (a partir de 11/06/2026). Solução: Atualizar manualmente via script ou injetar dados corretos no matches-data.json.
+- - [ ] Ajustar ordem mandante/visitante – verificar se a tabela de palpites está mostrando o time da casa sempre à esquerda. Solução: Validar com os dados da API‑FOOTBALL ou corrigir no JSON.
+- - [ ] Desabilitar salvamento de palpites quando startTime for nulo – evitar que apostas sejam salvas sem data definida.
+Solução: No frontend, comparar new Date(match.startTime) – se for Invalid Date, exibir mensagem e bloquear.
+- - [ ] Tratar erro do Firebase Auth quando domínio não autorizado – adicionar localhost e domínio de produção nas configurações do Firebase.
 
----
+- [ ] 🧪 Fase 1 – Estabilidade e experiência do usuário
+- - [ ] Substituir alert() por toasts – usar react-hot-toast para feedbacks não intrusivos.
+Benefício: Menos irritante, mais profissional.
+- - [ ] Adicionar skeleton loading – esqueletos animados enquanto carrega jogos, ranking e perfil.
+Exemplo: react-loading-skeleton.
+- - [ ] Implementar salvamento automático – após o usuário digitar os palpites, salvar em background (debounce). Reduz a necessidade de clicar em "Salvar" toda hora.
+- - [ ] Indicador visual de jogo bloqueado (já existe, mas melhorar) – mostrar um cadeado ou tooltip explicando “Jogo já começou”.
+- - [ ] Validar campos de gols – não permitir valores negativos ou letras (já está type="number", mas reforçar).
 
-## 📋 Roadmap
+- [ ] 🎨 Fase 2 – Melhorias visuais e responsividade
+- - [ ] Modo escuro (dark mode) – adicionar toggle que altera as variáveis CSS.
+Usar prefers-color-scheme e permitir escolha do usuário.
+- - [ ] Animações suaves – transições em cards, efeito de hover em botões, fade‑in ao carregar.
+- - [ ] Melhorar o layout do mata‑mata (bracket) – tornar as colunas mais compactas em telas pequenas (scroll horizontal amigável).
+- - [ ] Adicionar tooltips – explicar regras de pontuação, como funciona a classificação dos grupos, etc.
+- - [ ] Logo da Copa no header (já tem, mas centralizar) – ajustar posicionamento no mobile.
 
-- [ ] 🌙 Dark Mode
-- [ ] 📲 PWA
-- [ ] 🔔 Notificações
-- [ ] 📈 Gráficos
-- [ ] 📊 Dashboard admin
-- [ ] 📤 Exportar CSV
-- [ ] 🖼 Compartilhar ranking
+- [ ] 🧠 Fase 3 – Funcionalidades avançadas
+- - [ ] Gráfico de evolução no perfil – exibir a pontuação do usuário ao longo dos dias/rodadas.
+Biblioteca: recharts ou chart.js.
+- - [ ] Modo de simulação – permitir que o administrador teste “E se o Brasil perder para a Argentina?” (impacto no ranking).
+- - [ ] Compartilhamento do ranking – gerar uma imagem personalizada do ranking para postar em redes sociais (usando html-to-image).
+- - [ ] Notificações push (Firebase Cloud Messaging) – avisar quando um jogo terminar ou quando o ranking for atualizado.
+- - [ ] Exportar dados do usuário (GDPR) – botão para baixar todas as apostas e estatísticas em JSON/CSV.
+
+- [ ] 🔁 Fase 4 – Automação e integração
+- - [ ] Workflow de sincronização de resultados (GitHub Actions) já existe – testar e ajustar para rodar a cada 6 horas com a API‑FOOTBALL.
+- - [ ] Atualização automática dos confrontos do mata‑mata – com base nos palpites de classificação de grupos, gerar as chaves das oitavas no próprio frontend (o código já faz isso, mas pode ser refinado).
+- - [ ] Webhook para resultados reais – disparar uma função (ex: Firebase Function) que envia e‑mail para quem acertou o placar exato.
+- - [ ] Cache do Firestore com persistência offline – habilitar enableIndexedDbPersistence para funcionar sem internet (leituras anteriores).
+
+- [ ] 🛡️ Fase 5 – Segurança e escalabilidade
+- - [ ] Rate limiting nas operações de escrita (Firestore regras) – impedir que um usuário faça muitas apostas em pouco tempo.
+- - [ ] Auditoria de ações do administrador – criar coleção logs para registrar quem alterou resultados ou configurações.
+- - [ ] Backup automático do Firestore – exportar dados periodicamente para o Google Cloud Storage (gratuito até 5 GB/mês).
+- - [ ] Monitoramento de erros – integrar com Sentry (plano gratuito) para capturar exceções no frontend.
+
+- [ ] 🧪 Fase 6 – Testes e documentação
+- - [ ] Testes unitários (Jest + React Testing Library) – cobrir componentes críticos (Matches, Ranking, AdminPanel).
+- - [ ] Testes de integração – simular fluxo de login, aposta e cálculo de ranking.
+- - [ ] Documentação completa da API (Firestore esquemas) – listar todas as coleções, campos e regras.
+- - [ ] Guia de contribuição (CONTRIBUTING.md) e código de conduta.
+- - [ ] Vídeo demonstrativo – gravar um tutorial rápido de como rodar o projeto e usar o painel admin.
+
+- [ ] 🚀 Fase 7 – Deploy contínuo e monitoramento
+- - [ ] Configurar ambiente de staging – deploy em projeto Firebase separado para testar antes de ir para produção.
+- - [ ] Monitoramento de desempenho – usar o próprio Firebase Performance (gratuito) para identificar lentidão.
+- - [ ] Configurar domínio personalizado (ex: bolaocopa2026.com.br) – isso exige um plano pago do Firebase Hosting (mas o projeto pode ficar no .web.app sem custo).
+
+- [ ] Ideias extras (para o futuro distante)
+- - [ ] Sistema de ligas privadas – criar grupos fechados onde os amigos competem entre si.
+- - [ ] Palpites de posse de bola, cartões, escanteios (mais complexo, exigiria outra API).
+- - [ ] Chat integrado (Firebase Realtime Database) para a galera zoar em tempo real.
+- - [ ] Versão mobile nativa (React Native) – reutilizar a lógica do Firestore e autenticação.
 
 ---
 
@@ -228,7 +278,7 @@ Abra um Pull Request 🚀
 
 ## 📄 Licença
 
-MIT License
+Este projeto está sob a licença MIT, permitindo uso, modificação e distribuição livre do código.
 
 ---
 
