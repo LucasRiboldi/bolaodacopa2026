@@ -1,157 +1,162 @@
-# ⚽🏆 Bolão Copa do Mundo 2026
+<!-- BANNER -->
+<p align="center">
+  <img src="https://via.placeholder.com/1200x300/0f172a/ffffff?text=Bolão+Copa+2026" alt="Bolão Copa 2026 Banner" />
+</p>
 
-### *Chute o placar, suba no ranking e prove que você entende mais que o comentarista da TV!* 🎙️🔥
+<h1 align="center">🏆 Bolão Copa do Mundo 2026</h1>
 
 <p align="center">
-  <img src="./assets/badge-live.gif" height="28" />
-  <img src="./assets/badge-ranking.gif" height="28" />
-  <img src="./assets/badge-serverless.gif" height="28" />
+  <b>Chute o placar, suba no ranking e prove que você entende de futebol ⚽</b>
+</p>
+
+<p align="center">
+  <a href="#-demo">Demo</a> •
+  <a href="#-preview">Preview</a> •
+  <a href="#-funcionalidades">Funcionalidades</a> •
+  <a href="#-tecnologias">Tecnologias</a> •
+  <a href="#-instalação">Instalação</a> •
+  <a href="#-roadmap">Roadmap</a> •
+  <a href="#-contribuição">Contribuição</a>
 </p>
 
 ---
 
-## 🎬 Demo
+## 🚀 Demo
 
+🔗 Em breve (ou adicione seu link aqui)  
+Ex: https://bolao-2026.web.app
+
+---
+
+## 📸 Preview
+
+### 🏠 Tela inicial
 <p align="center">
-  <img src="./assets/demo.gif" alt="Demonstração do sistema" width="800"/>
+  <img src="https://via.placeholder.com/900x500?text=Home+Screen" width="80%" />
+</p>
+
+### 📊 Ranking
+<p align="center">
+  <img src="https://via.placeholder.com/900x500?text=Ranking" width="80%" />
+</p>
+
+### 🧾 Palpites
+<p align="center">
+  <img src="https://via.placeholder.com/900x500?text=Palpites" width="80%" />
 </p>
 
 ---
 
-## 🎯 Sobre o projeto
+## 🎬 Demonstração (GIF)
 
-O **Bolão Copa 2026** é uma aplicação web **100% serverless**, gratuita e responsiva, criada pra transformar qualquer grupo de amigos em uma competição digna de final de Copa.
-
-> 💡 *Aqui não ganha quem torce melhor — ganha quem chuta melhor.*
+<p align="center">
+  <img src="https://via.placeholder.com/900x500?text=GIF+Demo" width="80%" />
+</p>
 
 ---
 
 ## ✨ Funcionalidades
 
-* 🔐 Login com Google ou e-mail/senha
-* 📊 Palpites para os **72 jogos da fase de grupos**
-* 🏆 Classificação dos grupos (1º e 2º)
-* 🔥 Mata-mata completo (oitavas → final + 3º lugar)
-* 🎯 Sistema de pontuação com bônus
-* 📈 Ranking automático em tempo real
-* 🛠️ Painel administrativo completo
-* 📱 Layout totalmente responsivo
-* 🔄 Integração opcional com API de futebol
+### ⚽ Sistema completo de bolão
+
+- 🎯 Palpites para todos os jogos
+- 🏆 Classificação de grupos
+- 🔥 Mata-mata automático
+- 🥇 Campeão + bônus
+- 📊 Ranking em tempo real
 
 ---
 
-## 🧠 Diferenciais
+### 🔐 Autenticação
 
-* ⚡ Zero backend tradicional
-* 💸 Funciona no plano gratuito
-* 🔥 Dados em tempo real
-* 🧩 Código simples e escalável
-* 🤝 Fácil de contribuir
+- Login com Google
+- Email e senha
+- Firebase Auth
 
 ---
 
-## 🧰 Stack Tecnológica
+### 🛠 Administração
 
-| Tecnologia       | Função          |
-| ---------------- | --------------- |
-| React + Vite     | Frontend        |
-| Firebase Auth    | Autenticação    |
-| Firestore        | Banco de dados  |
-| Firebase Hosting | Deploy          |
-| GitHub Actions   | CI/CD           |
-| API-Football     | Dados dos jogos |
-| Flagpedia        | Bandeiras       |
+- Gerenciar jogos
+- Editar resultados
+- Recalcular ranking
+- Importar dados JSON
+- Sincronizar API
 
 ---
 
-## 🚀 Instalação
+### 📱 UX moderna
 
-### 🔧 Pré-requisitos
-
-* Node.js 18+
-* Conta no Firebase
+- 100% responsivo
+- Interface limpa
+- Performance otimizada
 
 ---
 
-### 📥 Clone o repositório
+## 🧠 Arquitetura
+
+```mermaid
+graph TD
+A[Usuário] --> B[React App]
+B --> C[Firebase Auth]
+B --> D[Firestore]
+B --> E[API Football]
+```
+
+---
+
+## 🧰 Tecnologias
+
+<p align="center">
+
+<img src="https://skillicons.dev/icons?i=react,vite,firebase,js,html,css,git" />
+
+</p>
+
+- React 18
+- Vite
+- Firebase (Auth + Firestore + Hosting)
+- API-Football
+- GitHub Actions
+
+---
+
+## ⚙️ Instalação
 
 ```bash
+# Clone o projeto
 git clone https://github.com/LucasRiboldi/bolao-2026.git
+
+# Entre na pasta
 cd bolao-2026/client
+
+# Instale dependências
+npm install
 ```
 
 ---
 
-### ⚙️ Configuração
+## 🔑 Variáveis de ambiente
 
-```bash
-cp .env.example .env
-```
-
-Edite o `.env`:
+Crie um `.env`:
 
 ```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_API_FOOTBALL_KEY=... # opcional
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_API_FOOTBALL_KEY=
 ```
 
 ---
 
-### ▶️ Rodar o projeto
+## ▶️ Rodando localmente
 
 ```bash
-npm install
 npm run dev
 ```
-
-Acesse: http://localhost:5173
-
----
-
-## 👑 Admin (modo avançado)
-
-1. Faça login
-2. Copie seu UID no Firebase
-3. Crie coleção `admins` no Firestore
-4. Adicione seu UID
-
----
-
-## 📦 Estrutura do projeto
-
-```
-bolao-2026/
-├── client/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── utils/
-│   │   └── App.jsx
-│   ├── public/
-│   └── .env
-├── scripts/
-├── .github/workflows/
-└── firebase.json
-```
-
----
-
-## 🧪 Qualidade
-
-* ✅ ESLint configurado
-* ✅ Commits semânticos
-* ✅ Hooks modernos
-* ✅ Build otimizada
-
----
-
-## 🔒 Segurança
-
-* 🔐 Autenticação Firebase
-* 🛡️ Regras no Firestore
-* 🚫 Sem exposição de segredos
-* 🔒 HTTPS automático
 
 ---
 
@@ -164,16 +169,48 @@ firebase deploy
 
 ---
 
-## 📈 Roadmap
+## 📦 Estrutura
 
-* 🌙 Dark Mode
-* 📊 Gráficos de evolução
-* 🔔 Notificações push
-* 📱 PWA
-* 📤 Exportar dados
-* 📸 Compartilhar ranking
-* ⚡ Skeleton loading
-* 💬 Toasts
+```bash
+client/
+ ├── src/
+ │   ├── components/
+ │   ├── utils/
+ │   ├── App.jsx
+ │   └── main.jsx
+ ├── public/
+ └── package.json
+```
+
+---
+
+## 🔒 Segurança
+
+- 🔐 Firebase Auth
+- 📜 Firestore Rules
+- 🔑 Variáveis protegidas (.env)
+- 🌐 HTTPS
+
+---
+
+## 🧪 Qualidade
+
+- ESLint
+- Código modular
+- Hooks modernos
+- Arquitetura escalável
+
+---
+
+## 📋 Roadmap
+
+- [ ] 🌙 Dark Mode
+- [ ] 📲 PWA
+- [ ] 🔔 Notificações
+- [ ] 📈 Gráficos
+- [ ] 📊 Dashboard admin
+- [ ] 📤 Exportar CSV
+- [ ] 🖼 Compartilhar ranking
 
 ---
 
@@ -189,51 +226,23 @@ Abra um Pull Request 🚀
 
 ---
 
-## 💡 Dicas para contribuidores
-
-* Use commits claros
-* Teste antes de subir
-* Comece por pequenas melhorias
-* Evite mudanças gigantes
-
----
-
 ## 📄 Licença
 
-MIT
+MIT License
 
 ---
 
-## 🙏 Créditos
+## 🙌 Autor
 
-* Firebase
-* React
-* API-Football
-* Flagpedia
-
----
-
-## 🧉 Autor
-
-Feito por **Lucas Riboldi**
+<p align="center">
+  <b>Lucas Riboldi</b><br>
+  Feito com ⚽ + ☕
+</p>
 
 ---
 
-## 🏁 Final
+## ⭐ Apoie o projeto
 
-> “No futebol e no código, todo mundo acha que sabe… até rodar em produção.” 😅
-
----
-
-## 📎 Quick Start
-
-```bash
-git clone repo
-cd client
-npm install
-npm run dev
-```
+Se curtiu, deixa uma ⭐ no repositório!
 
 ---
-
-🔥 Agora é só subir pro GitHub e chamar a galera!
