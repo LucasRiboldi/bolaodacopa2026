@@ -1,17 +1,9 @@
-# ====================================
-# DEPENDÊNCIAS (nunca versionar)
-# ====================================
-node_modules/
-client/node_modules/
-scripts/node_modules/
-
-# ====================================
-# FERRAMENTAS DE IA E AUXILIARES
-# ====================================
-.agents/
-.continue/
-.claude/
-.cursor/
-.askama/
-.github/copilot/
-.roomodes/
+"node_modules/" 
+"client/node_modules/" 
+"scripts/node_modules/" 
+".env" 
+"client/.env" 
+"scripts/.env" 
+"scripts/serviceAccountKey.json" 
+"dist/" 
+"client/dist/" 
