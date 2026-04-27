@@ -123,15 +123,13 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="logo" onClick={() => setCurrentView("dashboard")} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <img src="/worldcup2026-logo.png" alt="Logo Copa 2026" className="worldcup-logo" />
+        <div className="logo" onClick={() => setCurrentView("dashboard")}>
+          <img src="/worldcup2026-logo.png" alt="Logo" className="worldcup-logo" />
           <h1>Bolão <span>Copa 2026</span></h1>
         </div>
         <div className="user-info">
           <img src={user.photoURL} alt={user.displayName} className="user-avatar" />
           <span>{user.displayName}</span>
-          <button onClick={() => setCurrentView("profile")} className="profile-nav-btn">👤 Perfil</button>
-          {isAdmin && <button onClick={() => setCurrentView("admin")} className="admin-nav-btn">🔧 Admin</button>}
           <button onClick={() => signOut(auth)} className="logout-btn">Sair</button>
         </div>
       </header>

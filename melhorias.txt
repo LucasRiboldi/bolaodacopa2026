@@ -1,0 +1,140 @@
+Incoerências críticas:
+
+() Incompatibilidade entre KnockoutBracket e AdminPanel: O formato de salvamento das previsões de mata-mata é diferente,
+o que quebra o cálculo do ranking. KnockoutBracket salva como { [matchId]: { winner: ... } },
+enquanto AdminPanel espera { round16: [{ id, winner }], ... }.
+
+
+
+Cálculo de pontos no UserProfile está incorreto e não usa a pontuação configurável. Além disso, busca todas as previsões de todos os usuários.
+
+Sincronização de jogos no frontend (App.jsx) expõe a chave da API e deveria ser removida, usando apenas os scripts backend.
+
+GroupStageMatchesTable faz N chamadas individuais para buscar palpites, ineficiente.
+
+Ranking busca todos os rankings e depois todos os usuários separadamente, ineficiente.
+
+Falta muitos estilos CSS para classes usadas nos componentes.
+
+Melhorias sugeridas:
+Unificar formato das previsões de mata-mata para usar o mesmo padrão em toda a aplicação. Recomendo usar o formato simples { [matchId]: winner } porque é mais fácil de manipular no frontend. Ajustar o AdminPanel para ler esse formato.
+
+Refatorar UserProfile para buscar apenas as previsões do usuário logado e exibir a pontuação vinda do ranking (já calculada), não recalcular.
+
+Em vez disso, exibir histórico com status (acertou/errou) sem pontuação, ou buscar os pontos do documento rankings.
+
+Otimizar consultas ao Firestore:
+
+Em GroupStageMatchesTable, usar query(collection(db, "predictions"), where("userId", "==", user.uid)) para obter todos os palpites de uma vez.
+
+Em Ranking, usar query(collection(db, "rankings"), orderBy("totalPoints", "desc"), limit(limit)) e também armazenar o nome do usuário no documento de ranking (desnormalização) para evitar buscar em users.
+
+No AdminPanel, algumas consultas podem ser otimizadas com índices.
+
+Adicionar estilos faltantes no index.css para todas as classes usadas.
+
+Remover chave da API do frontend e mover sincronização para scripts ou Cloud Functions.
+
+Tratar erros de data/hora mais robustamente, usando o fuso horário UTC.
+
+Implementar loading skeletons onde apropriado (já no roadmap).
+
+Adicionar validação para não permitir palpites em jogos já iniciados, usando security rules do Firestore para garantir.
+
+Usar writeBatch em saveAllPredictions no GroupStageMatchesTable para salvar todos de uma vez.
+
+Corrigir o regulamento no GamesTab.jsx para refletir a pontuação configurável.
+
+Outras observações:
+Variáveis de ambiente: O frontend precisa de VITE_FIREBASE_*, mas também de VITE_API_FOOTBALL_KEY para a sincronização (embora não recomendado). O ideal é remover essa dependência.
+
+Firestore Rules: O arquivo firestore.rules não foi fornecido no conteúdo, mas está listado no README. É importante ter regras para evitar acesso não autorizado.
+
+Scripts de sincronização: Existem múltiplos scripts (syncMatches.js, update-matches.js, updateMatchesFromAPI.js, generate-test-bets.js). Eles precisam ser revisados para usar a mesma lógica de normalização e grupos.
+
+Testes: Não há testes unitários. O roadmap menciona testes.
+
+Sugestão de plano de ação imediato:
+Corrigir a incompatibilidade do mata-mata.
+
+Otimizar as consultas do Firestore (principalmente as que buscam todos os documentos).
+
+Remover a lógica de cálculo de pontos do UserProfile e exibir apenas o histórico de palpites.
+
+Adicionar os estilos CSS que faltam (pelo menos as classes principais).
+
+Testar o fluxo completo: login, palpites, admin criar jogos, calcular ranking.
+
+----
+
+2️⃣ Centralize a lógica de pontuação em um único lugar
+Hoje você tem scoring espalhado: AdminPanel.jsx, calculateFullRanking, config/scoring no Firestore.
+Crie um módulo dedicado src/utils/scoringEngine.js que exporta uma função calculateUserScore(userId) e usa apenas os dados do Firestore.
+Assim, tanto o painel admin quanto a visualização do usuário chamam a mesma lógica.
+
+3️⃣ Use Cloud Functions para tarefas pesadas
+Recalcular o ranking de todos os usuários no frontend é lento e inseguro. Migre para uma Cloud Function (Node.js) que:
+
+Roda automaticamente após cada atualização de resultado
+
+Pode ser chamada manualmente via botão no painel admin (mas rodando no backend)
+
+Exemplo de estrutura:
+
+js
+exports.recalculateRanking = onCall(async (data, context) => {
+  if (!context.auth.token.admin) throw new Error('Unauthorized');
+  // ... lógica de cálculo
+});
+4️⃣ Simplifique o painel de administrador
+Crie um painel administrativo separado (ex: /admin) que só carrega o necessário.
+Use Firebase Studio ou uma planilha sincronizada com o Firestore para editar jogos em massa.
+Ferramentas como Retool (gratuito para pequenos projetos) ou NocoDB conectado ao Firestore podem substituir seu AdminPanel.jsx inteiro.
+
+5️⃣ Automatize a criação de jogos da fase de grupos
+Em vez de gerar os 72 jogos manualmente, crie um script Node.js que:
+
+Lê a estrutura dos grupos (de um arquivo JSON)
+
+Gera todos os confrontos (cada time joga contra os outros 3 do grupo)
+
+Insere no Firestore com datas fictícias (ex: +1 dia por rodada)
+
+Esse script pode ser rodado localmente quando necessário e até versionado.
+
+6️⃣ Documente o fluxo de dados essencial
+Crie um arquivo DATA_FLOW.md na raiz explicando:
+
+Onde o usuário faz palpites (predictions collection)
+
+Onde estão os resultados oficiais (matches collection)
+
+Como o ranking é calculado (junção das duas)
+
+Isso evita que você mesmo esqueça da lógica daqui a dois meses.
+
+7️⃣ Use um gerenciador de estado global (Context API)
+Hoje você passa user e isAdmin por props em muitos lugares.
+Crie um AuthContext e um RankingContext que fornecem esses dados para toda a árvore.
+Menos props = menos bugs e menos retrabalho.
+
+8️⃣ Adote um linter + formatador rígido
+Configure ESLint e Prettier com regras padrão.
+Com isso, o código fica consistente e erros bobos (variável não usada, falta de async/await) desaparecem.
+
+9️⃣ Não reinvente a roda
+Use bibliotecas consolidadas para:
+
+Tabelas → react-data-table-component
+
+Datas → date-fns (mais leve que moment)
+
+Formulários → react-hook-form (validação fácil)
+
+Notificações → react-hot-toast
+
+🔟 Se o foco é ter o bolão no ar, simplifique com um template pronto
+Caso você queira algo funcional rapidamente, considere usar um template de bolão já pronto com Firebase. Há projetos open‑source como Bracket (https://github.com/bracket) ou WorldCupBet que podem ser adaptados.
+
+Alternativa ainda mais simples: use um Google Sheet compartilhado para os palpites e um script Apps Script para calcular o ranking. Parece arcaico, mas para um grupo pequeno de amigos funciona perfeitamente.
+

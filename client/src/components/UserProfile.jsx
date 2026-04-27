@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import GroupClassificationPicker from "./GroupClassificationPicker";
-import KnockoutBracket from "./KnockoutBracket";
+// FUTURO: import KnockoutBracket from "./KnockoutBracket";
 import BonusPredictions from "./BonusPredictions";
 
 export default function UserProfile({ user }) {
@@ -78,7 +78,7 @@ export default function UserProfile({ user }) {
       </div>
       <div className="profile-tabs">
         <button className={activeTab === "history" ? "active" : ""} onClick={() => setActiveTab("history")}>📋 Meus palpites (jogos)</button>
-        <button className={activeTab === "advanced" ? "active" : ""} onClick={() => setActiveTab("advanced")}>🏆 Classificação e mata‑mata</button>
+        <button className={activeTab === "advanced" ? "active" : ""} onClick={() => setActiveTab("advanced")}>🏆 Classificação e bônus (futuro mata‑mata)</button>
       </div>
       {activeTab === "history" && (
         <div className="predictions-history">
@@ -101,7 +101,10 @@ export default function UserProfile({ user }) {
         <div className="advanced-predictions">
           <GroupClassificationPicker user={user} />
           <hr className="separator" />
-          <KnockoutBracket user={user} />
+          {/* FUTURO: <KnockoutBracket user={user} /> */}
+          <div className="future-feature-notice">
+            <p>⚙️ A fase de mata‑mata será implementada em breve. Por enquanto, você pode continuar apostando nos grupos e no bônus.</p>
+          </div>
           <hr className="separator" />
           <BonusPredictions user={user} />
         </div>

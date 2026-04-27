@@ -3,16 +3,18 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, doc, setDoc, updateDoc, getDoc, writeBatch, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Flag } from "../utils/countryCodes";
-import { groups } from "../utils/groupConfig";
+import { groups, allTeams } from "../utils/groupConfig";
+import { calculateAllScores } from "../utils/scoringEngine";
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("groups");
   const [users, setUsers] = useState([]);
   const [groupMatches, setGroupMatches] = useState([]);
-  const [knockoutMatches, setKnockoutMatches] = useState({ round16: [], quarter: [], semi: [], final: [] });
+  // FUTURO: knockoutMatches será usado quando o mata‑mata for implementado
+  // const [knockoutMatches, setKnockoutMatches] = useState({ round16: [], quarter: [], semi: [], final: [] });
   const [scoring, setScoring] = useState({
     exactScore: 6, correctResult: 2, twoCorrectClassified: 5, oneCorrectClassified: 2, correctOrderBonus: 3,
-    round16: 4, quarter: 6, semi: 10, finalWinner: 12, semiFinalistEach: 5, finalistEach: 7, champion: 12
+    /* FUTURO: round16: 4, quarter: 6, semi: 10, finalWinner: 12, semiFinalistEach: 5, finalistEach: 7, champion: 12 */
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -26,24 +28,24 @@ export default function AdminPanel() {
         const predictionsSnap = await getDocs(collection(db, "predictions"));
         const predCount = {};
         predictionsSnap.forEach(doc => { predCount[doc.data().userId] = (predCount[doc.data().userId] || 0) + 1; });
-        const knockoutSnap = await getDocs(collection(db, "knockoutPredictions"));
-        const hasKnockout = new Set(knockoutSnap.docs.map(doc => doc.id));
-        setUsers(usersList.map(u => ({ ...u, predictionsCount: predCount[u.id] || 0, hasKnockoutPrediction: hasKnockout.has(u.id) })));
+        // FUTURO: knockoutSnap removido por enquanto
+        setUsers(usersList.map(u => ({ ...u, predictionsCount: predCount[u.id] || 0 })));
+
         const configDoc = await getDoc(doc(db, "config", "scoring"));
         if (configDoc.exists()) setScoring(configDoc.data());
-        const matchesSnap = await getDocs(collection(db, "matches"));
-        const allMatches = matchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setGroupMatches(allMatches.filter(m => m.round === "group" || !m.round));
-        setKnockoutMatches({
-          round16: allMatches.filter(m => m.round === "round16"),
-          quarter: allMatches.filter(m => m.round === "quarter"),
-          semi: allMatches.filter(m => m.round === "semi"),
-          final: allMatches.filter(m => m.round === "final")
-        });
+
+        await refreshMatches();
       } catch (error) { console.error(error); } finally { setLoading(false); }
     };
     fetchData();
   }, []);
+
+  const refreshMatches = async () => {
+    const matchesSnap = await getDocs(collection(db, "matches"));
+    const allMatches = matchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setGroupMatches(allMatches.filter(m => m.round === "group" || !m.round));
+    // FUTURO: setKnockoutMatches({ round16: allMatches.filter(m => m.round === "round16"), ... });
+  };
 
   const saveScoring = async () => {
     try { await setDoc(doc(db, "config", "scoring"), scoring); setMessage("✅ Critérios salvos!"); setTimeout(() => setMessage(""), 3000); } 
@@ -52,43 +54,32 @@ export default function AdminPanel() {
 
   const updateMatchResult = async (matchId, homeScore, awayScore) => {
     try {
-      await updateDoc(doc(db, "matches", matchId), { homeScore: parseInt(homeScore) || null, awayScore: parseInt(awayScore) || null });
+      const matchRef = doc(db, "matches", matchId);
+      const matchSnap = await getDoc(matchRef);
+      const matchData = matchSnap.data();
+      let updateData = { homeScore: parseInt(homeScore) || null, awayScore: parseInt(awayScore) || null };
+      
+      if (!matchData.startTime || isNaN(new Date(matchData.startTime).getTime())) {
+        const defaultStart = new Date(2026, 5, 11, 12, 0, 0);
+        updateData.startTime = defaultStart.toISOString();
+        updateData.date = defaultStart.toISOString().split('T')[0];
+        updateData.time = "12:00";
+      }
+      await updateDoc(matchRef, updateData);
       setMessage("✅ Resultado atualizado!");
       refreshMatches();
     } catch (error) { setMessage("❌ Erro ao atualizar."); }
-  };
-
-  const addKnockoutMatch = async (round, homeTeam, awayTeam, date, time, stadium) => {
-    if (!homeTeam || !awayTeam) { setMessage("Preencha os dois times."); return; }
-    try {
-      const newId = `${round}_${Date.now()}`;
-      await setDoc(doc(db, "matches", newId), { id: newId, round, homeTeam, awayTeam, homeScore: null, awayScore: null, date: date || "", time: time || "", stadium: stadium || "A definir", startTime: date ? new Date(`${date}T${time || "00:00"}`).toISOString() : null, status: "Not Started" });
-      setMessage(`✅ Jogo adicionado na ${round}`);
-      refreshMatches();
-    } catch (error) { setMessage("❌ Erro ao adicionar jogo."); }
   };
 
   const deleteMatch = async (matchId) => {
     if (window.confirm("Remover este jogo permanentemente?")) { await deleteDoc(doc(db, "matches", matchId)); setMessage("✅ Jogo removido"); refreshMatches(); }
   };
 
-  const refreshMatches = async () => {
-    const matchesSnap = await getDocs(collection(db, "matches"));
-    const allMatches = matchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setGroupMatches(allMatches.filter(m => m.round === "group" || !m.round));
-    setKnockoutMatches({
-      round16: allMatches.filter(m => m.round === "round16"),
-      quarter: allMatches.filter(m => m.round === "quarter"),
-      semi: allMatches.filter(m => m.round === "semi"),
-      final: allMatches.filter(m => m.round === "final")
-    });
-  };
-
   const createGroupStageMatches = async () => {
     setMessage("🚀 Criando 72 jogos da fase de grupos...");
     let total = 0;
     try {
-      const baseDate = new Date(2026, 5, 11);
+      const baseDate = new Date(2026, 5, 11, 13, 0, 0);
       let matchCounter = 0;
       for (const [group, teams] of Object.entries(groups)) {
         for (let i = 0; i < teams.length; i++) {
@@ -96,21 +87,13 @@ export default function AdminPanel() {
             const id = `${group}_${teams[i]}_vs_${teams[j]}`.replace(/\s/g, '_');
             const gameDate = new Date(baseDate);
             gameDate.setDate(baseDate.getDate() + Math.floor(matchCounter / 6));
-            gameDate.setHours(13 + (matchCounter % 6) * 2, 0, 0);
+            gameDate.setHours(13 + (matchCounter % 6) * 2, 0, 0, 0);
             const startTimeISO = gameDate.toISOString();
             await setDoc(doc(db, "matches", id), {
-              id,
-              round: "group",
-              group,
-              homeTeam: teams[i],
-              awayTeam: teams[j],
-              homeScore: null,
-              awayScore: null,
-              date: startTimeISO.split('T')[0],
-              time: `${gameDate.getHours()}:00`,
-              stadium: "A definir",
-              startTime: startTimeISO,
-              status: "Not Started",
+              id, round: "group", group, homeTeam: teams[i], awayTeam: teams[j],
+              homeScore: null, awayScore: null, date: startTimeISO.split('T')[0],
+              time: `${gameDate.getHours().toString().padStart(2,'0')}:00`,
+              stadium: "A definir", startTime: startTimeISO, status: "Not Started",
             });
             total++;
             matchCounter++;
@@ -122,30 +105,7 @@ export default function AdminPanel() {
     } catch (error) { console.error(error); setMessage("❌ Erro ao criar os jogos."); } finally { setTimeout(() => setMessage(""), 3000); }
   };
 
-  const createKnockoutMatches = async () => {
-    setMessage("🚀 Criando jogos do mata‑mata...");
-    try {
-      const batch = writeBatch(db);
-      const year = 2026;
-      for (let i = 1; i <= 8; i++) {
-        const id = `round16_${i}`;
-        batch.set(doc(db, "matches", id), { id, round: "round16", homeTeam: "TBD", awayTeam: "TBD", homeScore: null, awayScore: null, date: `2026-06-29`, time: "15:00", stadium: "Estádio a definir", startTime: new Date(year, 5, 28 + i, 15, 0).toISOString(), status: "Not Started" }, { merge: true });
-      }
-      for (let i = 1; i <= 4; i++) {
-        const id = `quarter_${i}`;
-        batch.set(doc(db, "matches", id), { id, round: "quarter", homeTeam: "TBD", awayTeam: "TBD", homeScore: null, awayScore: null, date: `2026-07-03`, time: "15:00", stadium: "Estádio a definir", startTime: new Date(year, 6, 2 + i, 15, 0).toISOString(), status: "Not Started" }, { merge: true });
-      }
-      for (let i = 1; i <= 2; i++) {
-        const id = `semi_${i}`;
-        batch.set(doc(db, "matches", id), { id, round: "semi", homeTeam: "TBD", awayTeam: "TBD", homeScore: null, awayScore: null, date: `2026-07-08`, time: "15:00", stadium: "Estádio a definir", startTime: new Date(year, 6, 7 + i, 15, 0).toISOString(), status: "Not Started" }, { merge: true });
-      }
-      batch.set(doc(db, "matches", "final"), { id: "final", round: "final", homeTeam: "TBD", awayTeam: "TBD", homeScore: null, awayScore: null, date: "2026-07-19", time: "15:00", stadium: "Estádio a definir", startTime: new Date(year, 6, 19, 15, 0).toISOString(), status: "Not Started" }, { merge: true });
-      batch.set(doc(db, "matches", "third_place"), { id: "third_place", round: "third_place", homeTeam: "TBD", awayTeam: "TBD", homeScore: null, awayScore: null, date: "2026-07-18", time: "14:00", stadium: "Estádio a definir", startTime: new Date(year, 6, 18, 14, 0).toISOString(), status: "Not Started" }, { merge: true });
-      await batch.commit();
-      setMessage("✅ Jogos do mata‑mata criados com sucesso!");
-      refreshMatches();
-    } catch (error) { console.error(error); setMessage("❌ Erro ao criar jogos do mata‑mata."); } finally { setTimeout(() => setMessage(""), 3000); }
-  };
+  // FUTURO: createKnockoutMatches, addKnockoutMatch serão implementados depois
 
   const importMatchesFromJSON = async (event) => {
     const file = event.target.files[0];
@@ -162,6 +122,14 @@ export default function AdminPanel() {
       let commitCount = 0;
       for (const match of matchesData) {
         if (!match.id) continue;
+        let validStartTime = match.startTime;
+        if (!validStartTime || isNaN(new Date(validStartTime).getTime())) {
+          const defaultDate = new Date(2026, 5, 11, 12, 0);
+          validStartTime = defaultDate.toISOString();
+          match.startTime = validStartTime;
+          match.date = validStartTime.split('T')[0];
+          match.time = "12:00";
+        }
         batch.set(doc(db, "matches", match.id), match, { merge: true });
         count++;
         if (count % 500 === 0) {
@@ -187,145 +155,27 @@ export default function AdminPanel() {
   const calculateFullRanking = async () => {
     setMessage("🔄 Calculando pontuação total...");
     try {
-      const points = (await getDoc(doc(db, "config", "scoring"))).data() || scoring;
-      const matchesSnap = await getDocs(collection(db, "matches"));
-      const matches = {};
-      const finishedMatches = [];
-      matchesSnap.forEach(doc => { const m = doc.data(); matches[doc.id] = m; if (m.homeScore !== null && m.awayScore !== null) finishedMatches.push(m); });
-
-      // Classificação real dos grupos
-      const groupResults = {};
-      for (const [grp, teams] of Object.entries(groups)) {
-        groupResults[grp] = {};
-        teams.forEach(team => { groupResults[grp][team] = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, points: 0 }; });
-      }
-      finishedMatches.forEach(m => {
-        if (m.round === "group" && m.group && groupResults[m.group]) {
-          const g = groupResults[m.group];
-          const home = m.homeTeam, away = m.awayTeam, hs = m.homeScore, as = m.awayScore;
-          g[home].played++; g[away].played++;
-          g[home].goalsFor += hs; g[home].goalsAgainst += as;
-          g[away].goalsFor += as; g[away].goalsAgainst += hs;
-          if (hs > as) { g[home].wins++; g[away].losses++; g[home].points += 3; }
-          else if (as > hs) { g[away].wins++; g[home].losses++; g[away].points += 3; }
-          else { g[home].draws++; g[away].draws++; g[home].points += 1; g[away].points += 1; }
-        }
-      });
-      const realGroupOrder = {};
-      for (const grp in groupResults) {
-        const teams = Object.entries(groupResults[grp]).map(([name, stats]) => ({ name, ...stats, goalDifference: stats.goalsFor - stats.goalsAgainst }));
-        teams.sort((a,b) => { if (a.points !== b.points) return b.points - a.points; if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference; return b.goalsFor - a.goalsFor; });
-        realGroupOrder[grp] = teams.map(t => t.name);
-      }
-
-      // Vencedores reais mata-mata
-      const knockoutWinners = { round16: {}, quarter: {}, semi: {}, final: null };
-      finishedMatches.forEach(m => {
-        if (["round16", "quarter", "semi", "final"].includes(m.round)) {
-          const winner = m.homeScore > m.awayScore ? m.homeTeam : (m.awayScore > m.homeScore ? m.awayTeam : null);
-          if (winner) knockoutWinners[m.round][m.id] = winner;
-          if (m.round === "final") knockoutWinners.final = winner;
-        }
-      });
-      const realSemifinalists = new Set();
-      finishedMatches.filter(m => m.round === "semi").forEach(m => { realSemifinalists.add(m.homeTeam); realSemifinalists.add(m.awayTeam); });
-      const finalMatch = finishedMatches.find(m => m.round === "final");
-      const realFinalists = new Set();
-      if (finalMatch) { realFinalists.add(finalMatch.homeTeam); realFinalists.add(finalMatch.awayTeam); }
-      const realChampion = knockoutWinners.final;
-
-      const usersSnap = await getDocs(collection(db, "users"));
-      const userScores = {};
-      usersSnap.forEach(doc => { userScores[doc.id] = { total: 0, exact: 0, result: 0, group: 0, knockout: 0, bonus: 0 }; });
-
-      const predictionsSnap = await getDocs(collection(db, "predictions"));
-      predictionsSnap.forEach(predDoc => {
-        const pred = predDoc.data();
-        const match = matches[pred.matchId];
-        if (match && match.homeScore !== null && match.awayScore !== null) {
-          let pts = 0;
-          if (pred.homeScore === match.homeScore && pred.awayScore === match.awayScore) { pts = points.exactScore; userScores[pred.userId].exact++; }
-          else {
-            const predWinner = pred.homeScore > pred.awayScore ? "home" : pred.homeScore < pred.awayScore ? "away" : "draw";
-            const realWinner = match.homeScore > match.awayScore ? "home" : match.homeScore < match.awayScore ? "away" : "draw";
-            if (predWinner === realWinner) { pts = points.correctResult; userScores[pred.userId].result++; }
-          }
-          userScores[pred.userId].total += pts;
-        }
-      });
-
-      const groupPredSnap = await getDocs(collection(db, "groupPredictions"));
-      groupPredSnap.forEach(doc => {
-        const data = doc.data();
-        const userId = doc.id.split("_")[0];
-        const group = doc.id.split("_")[1];
-        const realOrder = realGroupOrder[group] || [];
-        const userOrder = [data.first, data.second];
-        let acertos = 0;
-        if (userOrder[0] && realOrder.includes(userOrder[0])) acertos++;
-        if (userOrder[1] && realOrder.includes(userOrder[1])) acertos++;
-        let pts = 0;
-        if (acertos === 2) pts = points.twoCorrectClassified;
-        else if (acertos === 1) pts = points.oneCorrectClassified;
-        if (acertos === 2 && userOrder[0] === realOrder[0] && userOrder[1] === realOrder[1]) pts += points.correctOrderBonus;
-        userScores[userId].total += pts;
-        userScores[userId].group += pts;
-      });
-
-      const koPredSnap = await getDocs(collection(db, "knockoutPredictions"));
-      koPredSnap.forEach(doc => {
-        const data = doc.data();
-        const userId = doc.id;
-        for (const round of ["round16", "quarter", "semi", "final"]) {
-          const matchesArr = data[round];
-          if (matchesArr && Array.isArray(matchesArr)) {
-            matchesArr.forEach(m => {
-              if (m.winner && knockoutWinners[round] && knockoutWinners[round][m.id] === m.winner) {
-                let pts = 0;
-                if (round === "round16") pts = points.round16;
-                else if (round === "quarter") pts = points.quarter;
-                else if (round === "semi") pts = points.semi;
-                else if (round === "final") pts = points.finalWinner;
-                userScores[userId].total += pts;
-                userScores[userId].knockout += pts;
-              }
-            });
-          } else if (round === "final" && data.final && data.final.winner && knockoutWinners.final === data.final.winner) {
-            userScores[userId].total += points.finalWinner;
-            userScores[userId].knockout += points.finalWinner;
-          }
-        }
-      });
-
-      const bonusPredSnap = await getDocs(collection(db, "bonusPredictions"));
-      bonusPredSnap.forEach(doc => {
-        const data = doc.data();
-        const userId = doc.id;
-        let pts = 0;
-        if (data.semifinalists) data.semifinalists.forEach(team => { if (realSemifinalists.has(team)) pts += points.semiFinalistEach; });
-        if (data.finalists) data.finalists.forEach(team => { if (realFinalists.has(team)) pts += points.finalistEach; });
-        if (data.champion && data.champion === realChampion) pts += points.champion;
-        userScores[userId].total += pts;
-        userScores[userId].bonus += pts;
-      });
-
+      const scoresMap = await calculateAllScores();
       const batch = writeBatch(db);
-      for (const [uid, scores] of Object.entries(userScores)) {
-        batch.set(doc(db, "rankings", uid), { userId: uid, totalPoints: scores.total, details: { exact: scores.exact, result: scores.result, group: scores.group, knockout: scores.knockout, bonus: scores.bonus }, updatedAt: new Date().toISOString() });
+      for (const [userId, score] of scoresMap.entries()) {
+        batch.set(doc(db, "rankings", userId), {
+          userId,
+          totalPoints: score.total,
+          details: score.details,
+          updatedAt: new Date().toISOString()
+        });
       }
       await batch.commit();
-      setMessage("✅ Pontuação total calculada e rankings atualizados!");
-    } catch (error) { console.error(error); setMessage("❌ Erro ao calcular pontuação total."); }
+      setMessage(`✅ Ranking calculado para ${scoresMap.size} usuários!`);
+    } catch (error) {
+      console.error(error);
+      setMessage("❌ Erro ao calcular pontuação total.");
+    }
   };
 
   if (loading) return <div>Carregando painel...</div>;
 
-  const MatchList = ({ matches, roundTitle, allowDelete = false, showAddForm = false, onAdd }) => {
-    const [newHome, setNewHome] = useState("");
-    const [newAway, setNewAway] = useState("");
-    const [newDate, setNewDate] = useState("");
-    const [newTime, setNewTime] = useState("");
-    const [newStadium, setNewStadium] = useState("");
+  const MatchList = ({ matches, roundTitle, allowDelete = false }) => {
     return (
       <div className="admin-section">
         <h3 className="admin-section-title">{roundTitle}</h3>
@@ -337,7 +187,11 @@ export default function AdminPanel() {
                 <div className="team-with-flag"><Flag teamName={match.homeTeam} size={28} /><strong>{match.homeTeam}</strong></div>
                 <span>vs</span>
                 <div className="team-with-flag"><Flag teamName={match.awayTeam} size={28} /><strong>{match.awayTeam}</strong></div>
-                <div className="match-datetime">{match.date && <span>{match.date} {match.time}</span>}{match.stadium && <span>{match.stadium}</span>}</div>
+                <div className="match-datetime">
+                  {match.startTime && !isNaN(new Date(match.startTime).getTime()) ? 
+                    `${new Date(match.startTime).toLocaleDateString()} ${new Date(match.startTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : 
+                    "Data inválida"}
+                </div>
               </div>
               <div className="score-edit">
                 <input type="number" placeholder="gols casa" defaultValue={match.homeScore ?? ""} onBlur={(e) => updateMatchResult(match.id, e.target.value, match.awayScore)} />
@@ -347,17 +201,6 @@ export default function AdminPanel() {
             </div>
           ))}
         </div>
-        {showAddForm && (
-          <div className="add-match-form">
-            <h4>Adicionar novo jogo</h4>
-            <input placeholder="Time da casa" value={newHome} onChange={e => setNewHome(e.target.value)} />
-            <input placeholder="Time visitante" value={newAway} onChange={e => setNewAway(e.target.value)} />
-            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
-            <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} />
-            <input placeholder="Estádio" value={newStadium} onChange={e => setNewStadium(e.target.value)} />
-            <button onClick={() => onAdd(newHome, newAway, newDate, newTime, newStadium)}>➕ Adicionar</button>
-          </div>
-        )}
       </div>
     );
   };
@@ -368,7 +211,7 @@ export default function AdminPanel() {
       {message && <div className="admin-message">{message}</div>}
       <div className="admin-tabs">
         <button className={activeTab === "groups" ? "active" : ""} onClick={() => setActiveTab("groups")}>📋 Fase de Grupos</button>
-        <button className={activeTab === "knockout" ? "active" : ""} onClick={() => setActiveTab("knockout")}>🏆 Mata‑Mata</button>
+        {/* FUTURO: <button className={activeTab === "knockout" ? "active" : ""} onClick={() => setActiveTab("knockout")}>🏆 Mata‑Mata</button> */}
         <button className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>⚙️ Configurações</button>
         <button className={activeTab === "users" ? "active" : ""} onClick={() => setActiveTab("users")}>👥 Usuários</button>
       </div>
@@ -383,21 +226,11 @@ export default function AdminPanel() {
             </label>
             {importing && <span>⏳ Importando...</span>}
           </div>
-          <MatchList matches={groupMatches} roundTitle="📋 Jogos da Fase de Grupos" />
+          <MatchList matches={groupMatches} roundTitle="📋 Jogos da Fase de Grupos" allowDelete />
         </>
       )}
 
-      {activeTab === "knockout" && (
-        <div>
-          <div className="admin-actions-bar">
-            <button onClick={createKnockoutMatches} className="btn-admin-primary">🏁 Criar jogos eliminatórios</button>
-          </div>
-          <MatchList matches={knockoutMatches.round16} roundTitle="🏆 Oitavas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("round16", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.quarter} roundTitle="🏆 Quartas de final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("quarter", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.semi} roundTitle="🏆 Semifinais" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("semi", h, a, d, t, s)} />
-          <MatchList matches={knockoutMatches.final} roundTitle="🏆 Final" allowDelete showAddForm onAdd={(h,a,d,t,s) => addKnockoutMatch("final", h, a, d, t, s)} />
-        </div>
-      )}
+      {/* FUTURO: seção de mata‑mata removida */}
 
       {activeTab === "settings" && (
         <div className="admin-section settings-grid">
@@ -412,17 +245,7 @@ export default function AdminPanel() {
             <div className="scoring-row"><label>Acertar apenas um classificado:</label><input type="number" value={scoring.oneCorrectClassified} onChange={e => setScoring({...scoring, oneCorrectClassified: parseInt(e.target.value)})} /></div>
             <div className="scoring-row"><label>Bônus por ordem correta (1º e 2º lugares):</label><input type="number" value={scoring.correctOrderBonus} onChange={e => setScoring({...scoring, correctOrderBonus: parseInt(e.target.value)})} /></div>
           </div>
-          <div className="scoring-category"><h3>🥊 Mata‑mata (quem avança)</h3>
-            <div className="scoring-row"><label>Oitavas de final:</label><input type="number" value={scoring.round16} onChange={e => setScoring({...scoring, round16: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Quartas de final:</label><input type="number" value={scoring.quarter} onChange={e => setScoring({...scoring, quarter: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Semifinal:</label><input type="number" value={scoring.semi} onChange={e => setScoring({...scoring, semi: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Final (vencedor do jogo):</label><input type="number" value={scoring.finalWinner} onChange={e => setScoring({...scoring, finalWinner: parseInt(e.target.value)})} /></div>
-          </div>
-          <div className="scoring-category"><h3>🎁 Bônus finais</h3>
-            <div className="scoring-row"><label>Acertar cada semifinalista:</label><input type="number" value={scoring.semiFinalistEach} onChange={e => setScoring({...scoring, semiFinalistEach: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Acertar cada finalista:</label><input type="number" value={scoring.finalistEach} onChange={e => setScoring({...scoring, finalistEach: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Acertar o campeão:</label><input type="number" value={scoring.champion} onChange={e => setScoring({...scoring, champion: parseInt(e.target.value)})} /></div>
-          </div>
+          {/* FUTURO: seções de mata‑mata e bônus serão adicionadas */}
           <div className="scoring-actions">
             <button onClick={saveScoring} className="btn-admin-secondary">💾 Salvar todas as configurações</button>
             <button onClick={calculateFullRanking} className="btn-admin-primary">🏆 Calcular pontuação TOTAL</button>
@@ -436,13 +259,7 @@ export default function AdminPanel() {
           <div className="users-table-responsive">
             <table className="admin-users-table">
               <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>E-mail</th>
-                  <th>Palpites (jogos)</th>
-                  <th>Mata‑mata</th>
-                  <th>Último palpite</th>
-                </tr>
+                <tr><th>Nome</th><th>E-mail</th><th>Palpites (jogos)</th><th>Último palpite</th></tr>
               </thead>
               <tbody>
                 {users.map(u => (
@@ -450,7 +267,6 @@ export default function AdminPanel() {
                     <td>{u.displayName || "—"}</td>
                     <td>{u.email || "—"}</td>
                     <td className={u.predictionsCount > 0 ? "has-bets" : "no-bets"}>{u.predictionsCount}</td>
-                    <td>{u.hasKnockoutPrediction ? "✅ Sim" : "❌ Não"}</td>
                     <td>{u.lastPredictionDate ? new Date(u.lastPredictionDate).toLocaleDateString() : "—"}</td>
                   </tr>
                 ))}
