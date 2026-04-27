@@ -3,7 +3,10 @@ import { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { groups } from "../utils/groupConfig";
-import { Flag } from "../utils/countryCodes"; // <-- importe o componente Flag
+import { Flag } from "../utils/countryCodes";
+import { getTeamNamePortuguese } from "../utils/teamNames";
+
+
 
 export default function GroupStandings() {
   const [standings, setStandings] = useState({});
@@ -11,7 +14,6 @@ export default function GroupStandings() {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "matches"), (snapshot) => {
-      // ... lógica existente (igual)
       const finishedMatches = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -21,6 +23,8 @@ export default function GroupStandings() {
             awayTeam: data.awayTeam,
             homeScore: data.homeScore,
             awayScore: data.awayScore,
+            round: data.round,
+            group: data.group,
           });
         }
       });
@@ -42,6 +46,7 @@ export default function GroupStandings() {
       }
 
       finishedMatches.forEach((match) => {
+        if (match.round !== "group") return;
         const { homeTeam, awayTeam, homeScore, awayScore } = match;
         if (stats[homeTeam] && stats[awayTeam]) {
           stats[homeTeam].played += 1;
@@ -91,25 +96,24 @@ export default function GroupStandings() {
       setStandings(groupedStandings);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   if (loading) return <div className="group-loading">📡 Carregando classificação...</div>;
 
   return (
-    <div className="group-standings">
-      <h2>📊 Classificação dos Grupos</h2>
-      <div className="groups-wrapper">
+    <div className="group-standings-container">
+      <h2>📊 TABELA DA COPA DO MUNDO 2026</h2>
+      <div className="groups-standings-wrapper">
         {Object.keys(standings).map((group) => (
-          <div key={group} className="group-card">
-            <h3>Grupo {group}</h3>
+          <div key={group} className="group-standings-card">
+            <h3 className="group-standings-title">GRUPO {group}</h3>
             <div className="table-responsive">
-              <table className="group-table">
+              <table className="group-standings-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Time</th>
+                    <th>POS</th>
+                    <th>SELEÇÃO</th>
                     <th>J</th>
                     <th>V</th>
                     <th>E</th>
@@ -117,17 +121,17 @@ export default function GroupStandings() {
                     <th>GP</th>
                     <th>GC</th>
                     <th>SG</th>
-                    <th>P</th>
+                    <th>PTS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {standings[group].map((team, idx) => (
-                    <tr key={team.team}>
+                    <tr key={getTeamNamePortuguese(team.team)} className={idx < 2 ? "qualified" : ""}>
                       <td className="position">{idx + 1}</td>
                       <td className="team-name-cell">
                         <div className="team-with-flag">
-                          <Flag teamName={team.team} size={24} />
-                          <span>{team.team}</span>
+                          <Flag teamName={getTeamNamePortuguese(team.team)} size={24} />
+                          <span>{getTeamNamePortuguese(team.team)}</span>
                         </div>
                       </td>
                       <td>{team.played}</td>

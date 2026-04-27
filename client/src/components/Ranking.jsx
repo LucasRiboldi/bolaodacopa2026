@@ -2,8 +2,9 @@
 import { useState, useEffect } from "react";
 import { collection, getDocs, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { getTeamNamePortuguese } from "../utils/teamNames";
 
-export default function Ranking() {
+export default function Ranking({ limit }) {
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,63 +13,50 @@ export default function Ranking() {
     const fetchRanking = async () => {
       setLoading(true);
       try {
-        // Buscar rankings ordenados por pontuação total (decrescente)
         const rankingsQuery = query(collection(db, "rankings"), orderBy("totalPoints", "desc"));
         const rankingsSnapshot = await getDocs(rankingsQuery);
-        
         if (rankingsSnapshot.empty) {
           setRanking([]);
           setLoading(false);
           return;
         }
-
-        // Mapear IDs dos usuários para buscar seus nomes
         const userIds = rankingsSnapshot.docs.map(doc => doc.id);
         const userNames = {};
-        
-        // Buscar nomes de todos os usuários de uma só vez (evita múltiplas chamadas)
         for (const uid of userIds) {
           const userDoc = await getDoc(doc(db, "users", uid));
-          if (userDoc.exists()) {
-            userNames[uid] = userDoc.data().displayName || userDoc.data().email || "Usuário";
-          } else {
-            userNames[uid] = "Usuário desconhecido";
-          }
+          userNames[uid] = userDoc.exists() ? (userDoc.data().displayName || userDoc.data().email || "Usuário") : "Usuário desconhecido";
         }
-
-        // Montar lista do ranking
-        const rankingList = rankingsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            userId: doc.id,
-            name: userNames[doc.id] || "Usuário",
-            points: data.totalPoints || 0,
-            details: data.details || null
-          };
-        });
-
+        const fullList = rankingsSnapshot.docs.map(doc => ({
+          userId: doc.id,
+          name: userNames[doc.id] || "Usuário",
+          points: doc.data().totalPoints || 0,
+        }));
+        const rankingList = limit ? fullList.slice(0, limit) : fullList;
         setRanking(rankingList);
       } catch (err) {
-        console.error("Erro ao carregar ranking:", err);
-        setError("Não foi possível carregar o ranking. Tente novamente mais tarde.");
+        setError("Não foi possível carregar o ranking.");
       } finally {
         setLoading(false);
       }
     };
-
     fetchRanking();
-  }, []);
+  }, [limit]);
 
   if (loading) return <div className="ranking-loading">Carregando ranking...</div>;
   if (error) return <div className="ranking-error">{error}</div>;
 
+  const getMedal = (index) => {
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+    return `${index + 1}º`;
+  };
+
   return (
     <div className="ranking-container">
-      <h2>🏆 Ranking Geral</h2>
-      {ranking.length === 0 ? (
-        <p>Nenhuma pontuação registrada ainda. Aguarde o administrador calcular o ranking.</p>
-      ) : (
-        <div className="ranking-table">
+      <h2 style={{ marginBottom: "1rem" }}>🏆 Ranking Geral</h2>
+      {ranking.length === 0 ? <p>Nenhuma pontuação registrada.</p> : (
+        <div>
           <div className="ranking-header">
             <span>Posição</span>
             <span>Participante</span>
@@ -76,7 +64,7 @@ export default function Ranking() {
           </div>
           {ranking.map((item, index) => (
             <div key={item.userId} className="ranking-row">
-              <span>{index + 1}º</span>
+              <span className="medal">{getMedal(index)}</span>
               <span>{item.name}</span>
               <span>{item.points}</span>
             </div>

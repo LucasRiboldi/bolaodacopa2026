@@ -25,7 +25,7 @@ export default function EmailLogin({ onClose }) {
       } else {
         await loginWithEmail(email, password);
       }
-      onClose(); // Fecha o modal após login bem‑sucedido
+      onClose();
     } catch (err) {
       console.error(err);
       switch (err.code) {

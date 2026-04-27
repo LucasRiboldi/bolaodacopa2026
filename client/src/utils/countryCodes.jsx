@@ -1,95 +1,91 @@
+// src/utils/countryCodes.jsx
 import { useState } from "react";
 
-// Mapeamento de nomes de times para código ISO 3166-1 alpha-2
+// Mapeamento de nomes de times para código ISO (para nome do arquivo)
 export const teamToCountryCode = {
-  // Grupo A
   "Mexico": "mx",
   "South Africa": "za",
   "South Korea": "kr",
   "Czech Republic": "cz",
-  // Grupo B
   "Canada": "ca",
   "Bosnia and Herzegovina": "ba",
   "Qatar": "qa",
   "Switzerland": "ch",
-  // Grupo C
   "Brazil": "br",
   "Morocco": "ma",
   "Haiti": "ht",
   "Scotland": "gb-sct",
-  // Grupo D
   "USA": "us",
   "Australia": "au",
   "Paraguay": "py",
   "Turkey": "tr",
-  // Grupo E
   "Germany": "de",
   "Curacao": "cw",
   "Ivory Coast": "ci",
   "Ecuador": "ec",
-  // Grupo F
   "Netherlands": "nl",
   "Japan": "jp",
   "Tunisia": "tn",
   "Sweden": "se",
-  // Grupo G
   "Belgium": "be",
   "Iran": "ir",
   "Egypt": "eg",
   "New Zealand": "nz",
-  // Grupo H
   "Spain": "es",
   "Uruguay": "uy",
   "Saudi Arabia": "sa",
   "Cape Verde": "cv",
-  // Grupo I
   "France": "fr",
   "Senegal": "sn",
   "Norway": "no",
   "Iraq": "iq",
-  // Grupo J
   "Argentina": "ar",
   "Austria": "at",
   "Algeria": "dz",
   "Jordan": "jo",
-  // Grupo K
   "Portugal": "pt",
   "Colombia": "co",
   "Uzbekistan": "uz",
   "DR Congo": "cd",
-  // Grupo L
   "England": "gb-eng",
   "Croatia": "hr",
   "Panama": "pa",
   "Ghana": "gh",
 };
 
-// Função para obter URL da bandeira (Flagpedia)
-export const getFlagUrl = (teamName, size = "72x54") => {
+// Obtém caminho da bandeira local
+const getFlagPath = (teamName, size = 32) => {
   const code = teamToCountryCode[teamName];
   if (!code) return null;
-  return `https://flagpedia.net/data/flags/icon/${size}/${code}.png`;
+  // Para subdivisões (Inglaterra, Escócia), usamos emoji fallback
+  if (code === "gb-eng" || code === "gb-sct") return null;
+  return `/flags/${code}.png`;
 };
 
-// Fallback: emoji
+// Fallback: emoji regional
 export const getFlagEmoji = (teamName) => {
   const code = teamToCountryCode[teamName];
   if (!code) return "🏆";
+  if (code === "gb-eng") return "🏴󠁧󠁢󠁥󠁮󠁧󠁿";
+  if (code === "gb-sct") return "🏴󠁧󠁢󠁳󠁣󠁴󠁿";
   const emoji = code
     .toUpperCase()
     .replace(/./g, (char) => String.fromCodePoint(127397 + char.charCodeAt(0)));
   return emoji;
 };
 
-// Componente de bandeira com fallback
-export const Flag = ({ teamName, size = 40, className = "" }) => {
+// Componente de bandeira com fallback automático
+export const Flag = ({ teamName, size = 24, className = "" }) => {
   const [imgError, setImgError] = useState(false);
-  const flagUrl = getFlagUrl(teamName);
+  const flagPath = getFlagPath(teamName, size);
   const emoji = getFlagEmoji(teamName);
 
-  if (!flagUrl || imgError) {
+  if (!flagPath || imgError) {
     return (
-      <span className={`flag-emoji ${className}`} style={{ fontSize: size }}>
+      <span
+        className={`flag-emoji ${className}`}
+        style={{ fontSize: size, display: "inline-block", lineHeight: 1 }}
+      >
         {emoji}
       </span>
     );
@@ -97,10 +93,10 @@ export const Flag = ({ teamName, size = 40, className = "" }) => {
 
   return (
     <img
-      src={flagUrl}
+      src={flagPath}
       alt={teamName}
       className={`flag-image ${className}`}
-      style={{ width: size, height: "auto" }}
+      style={{ width: size, height: "auto", display: "inline-block", verticalAlign: "middle" }}
       onError={() => setImgError(true)}
       loading="lazy"
     />

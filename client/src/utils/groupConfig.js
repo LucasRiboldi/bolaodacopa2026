@@ -1,5 +1,6 @@
 // src/utils/groupConfig.js
 // Grupos oficiais da Copa do Mundo 2026 - atualizado em abril de 2026
+// ATENÇÃO: Os nomes dos times DEVEM corresponder exatamente aos nomes armazenados na coleção 'matches' do Firestore.
 
 export const groups = {
   A: ["Mexico", "South Africa", "South Korea", "Czech Republic"],

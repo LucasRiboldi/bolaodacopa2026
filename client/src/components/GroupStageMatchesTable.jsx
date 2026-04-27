@@ -4,32 +4,54 @@ import { collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Flag } from "../utils/countryCodes";
 import { groups } from "../utils/groupConfig";
+import { getTeamNamePortuguese } from "../utils/teamNames";
 
-export default function GroupStageMatchesTable({ user }) {
+// Função auxiliar para formatar data/hora de forma segura
+const formatDateTime = (startTime) => {
+  if (!startTime) return "A definir";
+  const date = new Date(startTime);
+  if (isNaN(date.getTime())) return "A definir";
+  return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+export default function GroupStageMatchesTable({ user, selectedGroup }) {
   const [matches, setMatches] = useState([]);
   const [predictions, setPredictions] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [savingAll, setSavingAll] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!user) {
+        console.log("Sem usuário autenticado");
+        return;
+      }
       setLoading(true);
+      setError(null);
       try {
         const matchesSnapshot = await getDocs(collection(db, "matches"));
         let matchesList = matchesSnapshot.docs
           .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((m) => m.round === "group" && m.group && groups[m.group]); // apenas grupos oficiais
+          .filter((m) => m.round === "group" && m.group && groups[m.group]);
+
+        if (selectedGroup) {
+          matchesList = matchesList.filter((m) => m.group === selectedGroup);
+        }
+
         matchesList.sort((a, b) => {
           if (a.group !== b.group) return a.group.localeCompare(b.group);
           return new Date(a.startTime) - new Date(b.startTime);
         });
+
         setMatches(matchesList);
 
+        // Buscar palpites do usuário
         const predictionsMap = {};
         for (const match of matchesList) {
-          const predDoc = await getDoc(doc(db, "predictions", `${user.uid}_${match.id}`));
+          const docId = `${user.uid}_${match.id}`;
+          const predDoc = await getDoc(doc(db, "predictions", docId));
           if (predDoc.exists()) {
             predictionsMap[match.id] = predDoc.data();
           } else {
@@ -39,12 +61,13 @@ export default function GroupStageMatchesTable({ user }) {
         setPredictions(predictionsMap);
       } catch (error) {
         console.error("Erro ao carregar jogos:", error);
+        setError("Erro ao carregar os jogos. Tente recarregar a página.");
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [user]);
+  }, [user, selectedGroup]);
 
   const handleScoreChange = (matchId, field, value) => {
     setPredictions((prev) => ({
@@ -55,22 +78,31 @@ export default function GroupStageMatchesTable({ user }) {
 
   const savePrediction = async (matchId) => {
     const match = matches.find((m) => m.id === matchId);
-    if (!match) return;
-    const matchStart = new Date(match.startTime);
-    if (new Date() > matchStart) {
-      alert(`Jogo ${match.homeTeam} x ${match.awayTeam} já começou! Não é mais possível alterar.`);
+    if (!match) {
+      console.error("Jogo não encontrado:", matchId);
+      alert("Erro: jogo não encontrado.");
       return;
     }
+
+    // Verificar se o jogo já começou
+    const matchStart = match.startTime ? new Date(match.startTime) : null;
+    if (matchStart && new Date() > matchStart) {
+      alert(`Jogo ${getTeamNamePortuguese(match.homeTeam)} x ${getTeamNamePortuguese(match.awayTeam)} já começou! Não é mais possível alterar.`);
+      return;
+    }
+
     const pred = predictions[matchId];
     if (pred.homeScore === "" || pred.awayScore === "") {
       alert("Preencha ambos os placares antes de salvar.");
       return;
     }
+
     setSaving((prev) => ({ ...prev, [matchId]: true }));
     try {
-      await setDoc(doc(db, "predictions", `${user.uid}_${matchId}`), {
+      const docId = `${user.uid}_${matchId}`;
+      await setDoc(doc(db, "predictions", docId), {
         userId: user.uid,
-        matchId,
+        matchId: matchId,
         homeScore: Number(pred.homeScore),
         awayScore: Number(pred.awayScore),
         updatedAt: new Date().toISOString(),
@@ -78,8 +110,8 @@ export default function GroupStageMatchesTable({ user }) {
       setSaving((prev) => ({ ...prev, [matchId]: "saved" }));
       setTimeout(() => setSaving((prev) => ({ ...prev, [matchId]: false })), 1000);
     } catch (error) {
-      console.error(error);
-      alert("Erro ao salvar. Tente novamente.");
+      console.error("Erro ao salvar aposta:", error);
+      alert(`Erro ao salvar: ${error.message}. Verifique se você está logado e tem permissão.`);
       setSaving((prev) => ({ ...prev, [matchId]: false }));
     }
   };
@@ -87,14 +119,21 @@ export default function GroupStageMatchesTable({ user }) {
   const saveAllPredictions = async () => {
     setSavingAll(true);
     let successCount = 0;
+
+    if (!user || !user.uid) {
+      alert("Você precisa estar logado para salvar palpites.");
+      return;
+    }
+
     for (const match of matches) {
       const matchId = match.id;
-      const matchStart = new Date(match.startTime);
-      if (new Date() > matchStart) continue;
+      const matchStart = match.startTime ? new Date(match.startTime) : null;
+      if (matchStart && new Date() > matchStart) continue;
       const pred = predictions[matchId];
       if (pred.homeScore !== "" && pred.awayScore !== "") {
         try {
-          await setDoc(doc(db, "predictions", `${user.uid}_${matchId}`), {
+          const docId = `${user.uid}_${matchId}`;
+          await setDoc(doc(db, "predictions", docId), {
             userId: user.uid,
             matchId,
             homeScore: Number(pred.homeScore),
@@ -112,8 +151,8 @@ export default function GroupStageMatchesTable({ user }) {
   };
 
   if (loading) return <div className="loading-table">Carregando jogos...</div>;
+  if (error) return <div className="error-message">{error}</div>;
 
-  // Agrupar por grupo
   const groupedMatches = matches.reduce((acc, match) => {
     const group = match.group;
     if (!acc[group]) acc[group] = [];
@@ -121,10 +160,12 @@ export default function GroupStageMatchesTable({ user }) {
     return acc;
   }, {});
 
+  const pageTitle = selectedGroup ? `Grupo ${selectedGroup}` : "📋 Fase de Grupos – Palpites de placar";
+
   return (
     <div className="matches-table-container">
       <div className="table-header-actions">
-        <h2>📋 Fase de Grupos – Palpites de placar</h2>
+        <h2>{pageTitle}</h2>
         <button onClick={saveAllPredictions} disabled={savingAll} className="save-all-btn">
           {savingAll ? "Salvando todos..." : "💾 Salvar todos os palpites"}
         </button>
@@ -132,7 +173,7 @@ export default function GroupStageMatchesTable({ user }) {
 
       {Object.keys(groupedMatches).sort().map((group) => (
         <div key={group} className="group-section">
-          <h3 className="group-title">Grupo {group}</h3>
+          {!selectedGroup && <h3 className="group-title">Grupo {group}</h3>}
           <div className="table-responsive">
             <table className="matches-planilha">
               <thead>
@@ -149,20 +190,21 @@ export default function GroupStageMatchesTable({ user }) {
               </thead>
               <tbody>
                 {groupedMatches[group].map((match) => {
-                  const isStarted = new Date() > new Date(match.startTime);
+                  const matchStart = match.startTime ? new Date(match.startTime) : null;
+                  const isStarted = matchStart ? new Date() > matchStart : false;
                   const pred = predictions[match.id] || { homeScore: "", awayScore: "" };
                   const isSaved = saving[match.id] === "saved";
                   const isSaving = saving[match.id] === true;
 
+                  const homeName = getTeamNamePortuguese(match.homeTeam);
+                  const awayName = getTeamNamePortuguese(match.awayTeam);
+
                   return (
                     <tr key={match.id} className={isStarted ? "match-started" : ""}>
-                      <td className="match-datetime">
-                        {new Date(match.startTime).toLocaleDateString()} <br />
-                        {new Date(match.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
+                      <td className="match-datetime">{formatDateTime(match.startTime)}</td>
                       <td className="team-cell">
                         <Flag teamName={match.homeTeam} size={24} />
-                        <span>{match.homeTeam}</span>
+                        <span>{homeName}</span>
                       </td>
                       <td className="score-cell">
                         <input
@@ -187,7 +229,7 @@ export default function GroupStageMatchesTable({ user }) {
                       </td>
                       <td className="team-cell">
                         <Flag teamName={match.awayTeam} size={24} />
-                        <span>{match.awayTeam}</span>
+                        <span>{awayName}</span>
                       </td>
                       <td className="actions-cell">
                         {!isStarted && (

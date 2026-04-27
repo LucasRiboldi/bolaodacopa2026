@@ -1,53 +1,23 @@
-🚀 Recomendações para tornar o Bolão mais dinâmico e profissional
-Seu projeto já está robusto e funcional. Com pequenas melhorias, você pode elevá‑lo a um patamar profissional, mantendo o custo zero e a simplicidade.
+Análise de Segurança por Arquivo
 
-1️⃣ Experiência do Usuário (UX/UI)
-Sugestão	Porquê	Dificuldade
-Skeleton loading	Substitua o texto “Carregando...” por esqueletos animados (ex: react-content-loader).	Baixa
-Feedback visual ao salvar	Use toasts (react-hot-toast) em vez de alert().	Baixa
-Confirmação de salvamento automático	Indicador “Salvando...” e “Salvo ✓” nos palpites.	Média
-Modo escuro (toggle)	Adicione um botão para alternar entre tema claro/escuro (armazene a preferência no localStorage).	Baixa
-Scroll infinito ou paginação	Para listas grandes (ex: histórico de palpites), carregue 20 itens por vez.	Média
-Botão de voltar ao topo	Aparece após rolar a página.	Baixa
-2️⃣ Performance e SEO
-Sugestão	Porquê	Dificuldade
-Lazy loading de imagens	As bandeiras já usam loading="lazy" – continue assim.	✅ Já feito
-Cache do Firestore	Use enableIndexedDbPersistence para funcionar offline e reduzir leituras.	Média
-Otimização de consultas	Crie índices compostos no Firestore (ex: predictions por userId e matchId).	Baixa
-Meta tags dinâmicas	Adicione react-helmet-async para personalizar título/descrição por página.	Baixa
-PWA (Progressive Web App)	Torne o aplicativo instalável no celular (manifest.json + service worker).	Média
-3️⃣ Funcionalidades avançadas
-Sugestão	Porquê	Dificuldade
-Notificações push	Avise quando um jogo terminar ou quando o ranking mudar (Firebase Cloud Messaging).	Alta
-Gráficos de evolução	Mostre no perfil um gráfico de pontos ao longo do tempo (chart.js ou recharts).	Média
-Compartilhamento de resultados	Botão “Compartilhar meu ranking” que gera uma imagem com os dados.	Média
-Exportar dados (CSV)	Permita ao usuário baixar seu histórico de palpites em Excel.	Baixa
-Sistema de ligas/amigos	Crie grupos privados onde apenas membros veem o ranking interno.	Alta
-Palpites em tempo real	Use onSnapshot na tela de apostas para ver palpites de outros (com opção de privacidade).	Média
-4️⃣ Melhorias no painel admin
-Sugestão	Porquê	Dificuldade
-Dashboard com métricas	Mostre total de usuários, palpites realizados, média de pontos, etc.	Baixa
-Edição em massa de resultados	Atualize vários jogos de uma vez (ex: CSV upload).	Média
-Log de ações do admin	Registre quem alterou quais resultados (coleção adminLogs).	Baixa
-Simulação de pontuação	Calcule “o que aconteceria se...” (ex: se o Brasil ganhar de 2x0).	Alta
-5️⃣ Automatização e integrações
-Sugestão	Porquê	Dificuldade
-Webhook para quando jogo terminar	Dispare uma função (ex: enviar e‑mail para quem acertou).	Alta
-Integração com WhatsApp	Use API do WhatsApp Business para notificar líderes do ranking.	Alta
-Agendamento de ranking	GitHub Action já calcula ranking automaticamente (você configurou).	✅ Já feito
-Backup automático do Firestore	Exporte dados periodicamente para o Google Cloud Storage (gratuito até certo limite).	Média
-6️⃣ Custo zero – estratégias avançadas
-Firebase Spark Plan suporta até 50k leituras/dia. Com as otimizações sugeridas (índices, cache, lazy loading), você comporta milhares de usuários.
+1. firebase.js
+❌ FALHA: Não há verificação se as variáveis de ambiente existem. Se estiverem faltando, o Firebase pode falhar silenciosamente. Mas não é risco de segurança direto.
 
-TheSportsDB tem limite de 30 requisições/minuto. Use o script de sincronização a cada 6h (já configurado) – mais que suficiente.
+2. App.jsx
+❌ FALHA: No handleSync, está usando import.meta.env.VITE_API_FOOTBALL_KEY. Se a chave não for definida, ele apenas mostra mensagem de erro, mas não há risco. Contudo, a chave da API-FOOTBALL é pública (não é segredo crítico) – mas ainda assim, expor no frontend é inevitável. Não é falha grave.
 
-GitHub Actions é gratuito para repositórios públicos (e tem créditos para privados). Use‑o para sincronizar resultados diariamente.
+3. firestore.rules
+❗ FALHA CRÍTICA POTENCIAL: Se a coleção admins não existir ou estiver vazia, ninguém pode escrever em matches – correto. Mas é importante que a regra esteja publicada.
 
-🏁 Prioridade recomendada (primeiras 3 melhorias)
-Skeleton loading + toasts – impacta diretamente a percepção de qualidade.
+4. AdminPanel.jsx
+❌ FALHA: refreshMatches e outras funções não têm verificação de admin (mas são chamadas apenas por ações que já verificam admin ou são de leitura pública – ok).
 
-Cache offline (enableIndexedDbPersistence) – reduz leituras no Firestore e acelera recarregamentos.
+5. GroupStageMatchesTable.jsx
+❌ FALHA LEVE: saveAllPredictions itera sobre todos os jogos e salva apenas se pred.homeScore !== "" && pred.awayScore !== "". Mas não verifica novamente se o jogo começou (já verificou antes). Não é grave.
 
-PWA – permite instalar o bolão no celular como um app nativo.
+7. UserProfile.jsx
+❌ FALHA LEVE: Exibe user.email e user.displayName – sem risco.
 
-Se quiser, posso fornecer o código completo para qualquer uma dessas implementações. Basta pedir qual delas você quer priorizar.
+12. Arquivos de Configuração (.env, vite.config.js)
+❗ Importante: O arquivo .env NÃO deve ser commitado. Se ele estiver no repositório, é uma falha grave. Certifique-se de que .env está no .gitignore.
+
