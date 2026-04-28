@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, updateUserNickname } from "../firebase";
 import GroupClassificationPicker from "./GroupClassificationPicker";
 import BonusPredictions from "./BonusPredictions";
 import { calculateUserScore } from "../utils/scoringEngine";
@@ -8,10 +8,13 @@ import { calculateUserScore } from "../utils/scoringEngine";
 const EXACT_SCORE_POINTS = 6;
 const CORRECT_RESULT_POINTS = 2;
 
-export default function UserProfile({ user }) {
+export default function UserProfile({ user, userProfile, displayName, onProfileUpdate }) {
   const [activeTab, setActiveTab] = useState("history");
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [nickname, setNickname] = useState(displayName || "");
+  const [savingNickname, setSavingNickname] = useState(false);
+  const [nicknameMessage, setNicknameMessage] = useState("");
   const [stats, setStats] = useState({
     totalPoints: 0,
     exactHits: 0,
@@ -19,6 +22,10 @@ export default function UserProfile({ user }) {
     groupPoints: 0,
     totalBets: 0,
   });
+
+  useEffect(() => {
+    setNickname(displayName || "");
+  }, [displayName]);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -66,11 +73,7 @@ export default function UserProfile({ user }) {
               (prediction.homeScore > prediction.awayScore && match.homeScore > match.awayScore) ||
               (prediction.homeScore < prediction.awayScore && match.homeScore < match.awayScore) ||
               (prediction.homeScore === prediction.awayScore && match.homeScore === match.awayScore);
-            const points = isExact
-              ? EXACT_SCORE_POINTS
-              : sameResult
-                ? CORRECT_RESULT_POINTS
-                : 0;
+            const points = isExact ? EXACT_SCORE_POINTS : sameResult ? CORRECT_RESULT_POINTS : 0;
 
             return {
               ...prediction,
@@ -108,21 +111,65 @@ export default function UserProfile({ user }) {
     fetchUserData();
   }, [user]);
 
+  const handleNicknameSave = async () => {
+    if (!nickname.trim()) {
+      setNicknameMessage("Digite um apelido valido.");
+      return;
+    }
+
+    setSavingNickname(true);
+    setNicknameMessage("");
+
+    try {
+      const updatedDisplayName = await updateUserNickname(user, nickname);
+      if (onProfileUpdate) {
+        onProfileUpdate({
+          ...userProfile,
+          displayName: updatedDisplayName,
+        });
+      }
+      setNickname(updatedDisplayName);
+      setNicknameMessage("Apelido atualizado.");
+    } catch (error) {
+      console.error("Erro ao atualizar apelido:", error);
+      setNicknameMessage("Nao foi possivel salvar o apelido.");
+    } finally {
+      setSavingNickname(false);
+      window.setTimeout(() => setNicknameMessage(""), 2500);
+    }
+  };
+
   if (loading) {
     return <div className="profile-loading">Carregando seu perfil...</div>;
   }
 
   return (
     <div className="user-profile">
-      <div className="profile-header">
-        <img
-          src={user.photoURL || "/default-avatar.png"}
-          alt={user.displayName || user.email || "Usuario"}
-          className="profile-avatar"
-        />
-        <h2>{user.displayName || "Usuario"}</h2>
-        <p>{user.email}</p>
-      </div>
+      <section className="profile-card">
+        <div className="profile-header">
+          <img
+            src={user.photoURL || userProfile?.photoURL || "/default-avatar.png"}
+            alt={displayName}
+            className="profile-avatar"
+          />
+          <div className="profile-header-copy">
+            <span className="panel-kicker">Perfil do apostador</span>
+            <h2>{displayName}</h2>
+            <p>{user.email}</p>
+          </div>
+        </div>
+
+        <div className="nickname-editor">
+          <label className="input-group">
+            <span>Apelido publico</span>
+            <input value={nickname} onChange={(event) => setNickname(event.target.value)} maxLength={32} />
+          </label>
+          <button className="auth-submit-button" onClick={handleNicknameSave} disabled={savingNickname}>
+            {savingNickname ? "Salvando..." : "Salvar apelido"}
+          </button>
+        </div>
+        {nicknameMessage && <div className="inline-feedback">{nicknameMessage}</div>}
+      </section>
 
       <div className="stats-cards">
         <div className="stat-card">
@@ -144,16 +191,10 @@ export default function UserProfile({ user }) {
       </div>
 
       <div className="profile-tabs">
-        <button
-          className={activeTab === "history" ? "active" : ""}
-          onClick={() => setActiveTab("history")}
-        >
-          Meus palpites
+        <button className={activeTab === "history" ? "active" : ""} onClick={() => setActiveTab("history")}>
+          Palpites
         </button>
-        <button
-          className={activeTab === "advanced" ? "active" : ""}
-          onClick={() => setActiveTab("advanced")}
-        >
+        <button className={activeTab === "advanced" ? "active" : ""} onClick={() => setActiveTab("advanced")}>
           Classificacao e bonus
         </button>
       </div>
@@ -165,9 +206,7 @@ export default function UserProfile({ user }) {
             <div key={prediction.id} className="history-item">
               <div className="history-match">{prediction.matchName}</div>
               <div className="history-scores">
-                <span>
-                  Seu palpite: {prediction.homeScore} - {prediction.awayScore}
-                </span>
+                <span>Seu palpite: {prediction.homeScore} - {prediction.awayScore}</span>
                 {prediction.realScore && <span>Resultado real: {prediction.realScore}</span>}
               </div>
               <div

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { signOut } from "firebase/auth";
 import { collection, doc, getDoc, writeBatch } from "firebase/firestore";
 import axios from "axios";
-import { auth, db } from "./firebase";
+import { auth, db, ensureUserDocument } from "./firebase";
 import { getGroupByTeam } from "./utils/groupConfig";
 import LandingPage from "./components/LandingPage";
 import UserDashboard from "./components/UserDashboard";
@@ -37,26 +37,43 @@ function App() {
   const [currentView, setCurrentView] = useState("dashboard");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
-    const checkAdmin = async () => {
+    const bootstrapSession = async () => {
       if (!user) {
         setIsAdmin(false);
+        setUserProfile(null);
         setCurrentView("dashboard");
         return;
       }
 
       try {
-        const adminDoc = await getDoc(doc(db, "admins", user.uid));
+        await ensureUserDocument(user);
+
+        const [adminDoc, userDoc] = await Promise.all([
+          getDoc(doc(db, "admins", user.uid)),
+          getDoc(doc(db, "users", user.uid)),
+        ]);
+
         setIsAdmin(adminDoc.exists());
+        setUserProfile(userDoc.exists() ? userDoc.data() : null);
       } catch (error) {
-        console.error("Erro ao validar admin:", error);
+        console.error("Erro ao iniciar sessao:", error);
         setIsAdmin(false);
       }
     };
 
-    checkAdmin();
+    bootstrapSession();
   }, [user]);
+
+  const displayName = useMemo(() => {
+    if (!user) {
+      return "";
+    }
+
+    return userProfile?.displayName || user.displayName || user.email?.split("@")[0] || "Apostador";
+  }, [user, userProfile]);
 
   const handleSync = async () => {
     if (!isAdmin) {
@@ -91,40 +108,39 @@ function App() {
         const homeTeam = normalizeTeamName(fixture.teams?.home?.name);
         const awayTeam = normalizeTeamName(fixture.teams?.away?.name);
         const round = resolveRound(fixture.league?.round);
-        const group = round === "group"
-          ? getGroupByTeam(homeTeam) || getGroupByTeam(awayTeam)
-          : null;
+        const group = round === "group" ? getGroupByTeam(homeTeam) || getGroupByTeam(awayTeam) : null;
 
         if (round === "group" && !group) {
           continue;
         }
 
-        const idBase = round === "group"
-          ? `${group}_${homeTeam}_vs_${awayTeam}`
-          : `${round}_${homeTeam}_vs_${awayTeam}`;
-        const id = idBase.replace(/\s/g, "_");
+        const id = `${round === "group" ? group : round}_${homeTeam}_vs_${awayTeam}`.replace(/\s/g, "_");
 
-        batch.set(doc(matchesRef, id), {
-          id,
-          round,
-          group,
-          homeTeam,
-          awayTeam,
-          homeScore: fixture.goals?.home ?? null,
-          awayScore: fixture.goals?.away ?? null,
-          date: fixture.fixture?.date?.split("T")[0] ?? null,
-          time: fixture.fixture?.date
-            ? new Date(fixture.fixture.date).toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-                timeZone: "America/Sao_Paulo",
-              })
-            : null,
-          stadium: fixture.fixture?.venue?.name ?? "A definir",
-          startTime: fixture.fixture?.date ?? null,
-          status: fixture.fixture?.status?.long || "Not Started",
-        }, { merge: true });
+        batch.set(
+          doc(matchesRef, id),
+          {
+            id,
+            round,
+            group,
+            homeTeam,
+            awayTeam,
+            homeScore: fixture.goals?.home ?? null,
+            awayScore: fixture.goals?.away ?? null,
+            date: fixture.fixture?.date?.split("T")[0] ?? null,
+            time: fixture.fixture?.date
+              ? new Date(fixture.fixture.date).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZone: "America/Sao_Paulo",
+                })
+              : null,
+            stadium: fixture.fixture?.venue?.name ?? "A definir",
+            startTime: fixture.fixture?.date ?? null,
+            status: fixture.fixture?.status?.long || "Not Started",
+          },
+          { merge: true },
+        );
       }
 
       await batch.commit();
@@ -139,11 +155,7 @@ function App() {
   };
 
   if (loading) {
-    return (
-      <div className="loader-full" style={{ textAlign: "center", marginTop: "2rem" }}>
-        Carregando...
-      </div>
-    );
+    return <div className="loader-full">Carregando...</div>;
   }
 
   if (!user) {
@@ -153,46 +165,52 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="logo" onClick={() => setCurrentView("dashboard")}>
+        <button className="logo" onClick={() => setCurrentView("dashboard")}>
           <img src="/worldcup2026-logo.png" alt="Logo da Copa 2026" className="worldcup-logo" />
-          <h1>
-            Bolao <span>Copa 2026</span>
-          </h1>
-        </div>
+          <span className="logo-text">
+            <strong>Bolao 2026</strong>
+            <small>Copa do Mundo</small>
+          </span>
+        </button>
 
-        <nav className="dashboard-tabs" style={{ marginBottom: 0 }}>
-          <button
-            className={currentView === "dashboard" ? "active" : ""}
-            onClick={() => setCurrentView("dashboard")}
-          >
-            Inicio
-          </button>
-          <button
-            className={currentView === "profile" ? "active" : ""}
-            onClick={() => setCurrentView("profile")}
-          >
-            Perfil
-          </button>
-          {isAdmin && (
+        <div className="header-user-shell">
+          <nav className="dashboard-tabs dashboard-tabs--header">
             <button
-              className={currentView === "admin" ? "active" : ""}
-              onClick={() => setCurrentView("admin")}
+              className={currentView === "dashboard" ? "active" : ""}
+              onClick={() => setCurrentView("dashboard")}
             >
-              Admin
+              Inicio
             </button>
-          )}
-        </nav>
+            <button
+              className={currentView === "profile" ? "active" : ""}
+              onClick={() => setCurrentView("profile")}
+            >
+              Perfil
+            </button>
+            {isAdmin && (
+              <button
+                className={currentView === "admin" ? "active" : ""}
+                onClick={() => setCurrentView("admin")}
+              >
+                Admin
+              </button>
+            )}
+          </nav>
 
-        <div className="user-info">
-          <img
-            src={user.photoURL || "/default-avatar.png"}
-            alt={user.displayName || user.email || "Usuario"}
-            className="user-avatar"
-          />
-          <span>{user.displayName || user.email}</span>
-          <button onClick={() => signOut(auth)} className="logout-btn">
-            Sair
-          </button>
+          <div className="user-info">
+            <img
+              src={user.photoURL || "/default-avatar.png"}
+              alt={displayName}
+              className="user-avatar"
+            />
+            <div className="user-meta">
+              <strong>{displayName}</strong>
+              <span>{isAdmin ? "Administrador" : "Apostador"}</span>
+            </div>
+            <button onClick={() => signOut(auth)} className="logout-btn">
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
@@ -206,14 +224,19 @@ function App() {
       )}
 
       <main className="main-content">
-        {currentView === "dashboard" && <UserDashboard user={user} />}
-        {currentView === "profile" && <UserProfile user={user} />}
+        {currentView === "dashboard" && (
+          <UserDashboard user={user} userProfile={userProfile} displayName={displayName} />
+        )}
+        {currentView === "profile" && (
+          <UserProfile
+            user={user}
+            userProfile={userProfile}
+            displayName={displayName}
+            onProfileUpdate={setUserProfile}
+          />
+        )}
         {currentView === "admin" && isAdmin && <AdminPanel />}
       </main>
-
-      <footer className="app-footer">
-        <p>&copy; 2026 Bolao Copa do Mundo - Palpites gratuitos</p>
-      </footer>
     </div>
   );
 }

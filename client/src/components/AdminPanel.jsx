@@ -43,35 +43,17 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
+  const [savingUserId, setSavingUserId] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const usersSnapshot = await getDocs(collection(db, "users"));
-        const usersList = usersSnapshot.docs.map((userDoc) => ({
-          id: userDoc.id,
-          ...userDoc.data(),
-        }));
-
-        const predictionsSnapshot = await getDocs(collection(db, "predictions"));
-        const predictionCount = {};
-        predictionsSnapshot.forEach((predictionDoc) => {
-          const prediction = predictionDoc.data();
-          predictionCount[prediction.userId] = (predictionCount[prediction.userId] || 0) + 1;
-        });
-
-        setUsers(
-          usersList.map((user) => ({
-            ...user,
-            predictionsCount: predictionCount[user.id] || 0,
-          })),
-        );
-
         const configSnapshot = await getDoc(doc(db, "config", "scoring"));
         if (configSnapshot.exists()) {
           setScoring({ ...DEFAULT_SCORING, ...configSnapshot.data() });
         }
 
+        await refreshUsers();
         await refreshMatches();
       } catch (error) {
         console.error("Erro ao carregar painel admin:", error);
@@ -82,6 +64,29 @@ export default function AdminPanel() {
 
     fetchData();
   }, []);
+
+  const refreshUsers = async () => {
+    const usersSnapshot = await getDocs(collection(db, "users"));
+    const usersList = usersSnapshot.docs.map((userDoc) => ({
+      id: userDoc.id,
+      nicknameDraft: userDoc.data().displayName || "",
+      ...userDoc.data(),
+    }));
+
+    const predictionsSnapshot = await getDocs(collection(db, "predictions"));
+    const predictionCount = {};
+    predictionsSnapshot.forEach((predictionDoc) => {
+      const prediction = predictionDoc.data();
+      predictionCount[prediction.userId] = (predictionCount[prediction.userId] || 0) + 1;
+    });
+
+    setUsers(
+      usersList.map((userItem) => ({
+        ...userItem,
+        predictionsCount: predictionCount[userItem.id] || 0,
+      })),
+    );
+  };
 
   const refreshMatches = async () => {
     const matchesSnapshot = await getDocs(collection(db, "matches"));
@@ -293,6 +298,31 @@ export default function AdminPanel() {
     }
   };
 
+  const updateUserNickname = async (userId) => {
+    const selectedUser = users.find((item) => item.id === userId);
+    const nickname = selectedUser?.nicknameDraft?.trim();
+
+    if (!nickname) {
+      setMessage("Informe um apelido valido.");
+      return;
+    }
+
+    setSavingUserId(userId);
+
+    try {
+      await setDoc(doc(db, "users", userId), { displayName: nickname }, { merge: true });
+      setUsers((current) =>
+        current.map((item) => (item.id === userId ? { ...item, displayName: nickname } : item)),
+      );
+      setMessage("Apelido do usuario atualizado.");
+    } catch (error) {
+      console.error("Erro ao salvar apelido do usuario:", error);
+      setMessage("Erro ao salvar apelido.");
+    } finally {
+      setSavingUserId("");
+    }
+  };
+
   if (loading) {
     return <div>Carregando painel...</div>;
   }
@@ -458,27 +488,32 @@ export default function AdminPanel() {
       {activeTab === "users" && (
         <div className="admin-section users-section">
           <h2>Usuarios cadastrados</h2>
-          <div className="users-table-responsive">
-            <table className="admin-users-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>E-mail</th>
-                  <th>Palpites</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.displayName || "-"}</td>
-                    <td>{user.email || "-"}</td>
-                    <td className={user.predictionsCount > 0 ? "has-bets" : "no-bets"}>
-                      {user.predictionsCount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="admin-user-list">
+            {users.map((user) => (
+              <article key={user.id} className="admin-user-card">
+                <div className="admin-user-card-header">
+                  <strong>{user.displayName || "Apostador"}</strong>
+                  <span>{user.predictionsCount} palpites</span>
+                </div>
+                <p>{user.email || "-"}</p>
+                <div className="admin-user-card-actions">
+                  <input
+                    value={user.nicknameDraft || ""}
+                    onChange={(event) =>
+                      setUsers((current) =>
+                        current.map((item) =>
+                          item.id === user.id ? { ...item, nicknameDraft: event.target.value } : item,
+                        ),
+                      )
+                    }
+                    placeholder="Editar apelido"
+                  />
+                  <button onClick={() => updateUserNickname(user.id)} disabled={savingUserId === user.id}>
+                    {savingUserId === user.id ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       )}

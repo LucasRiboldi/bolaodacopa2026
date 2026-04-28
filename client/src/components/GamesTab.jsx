@@ -4,7 +4,6 @@ import { db } from "../firebase";
 import GroupStageMatchesTable from "./GroupStageMatchesTable";
 
 export default function GamesTab({ user }) {
-  const [selectedGroup, setSelectedGroup] = useState("A");
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,11 +18,12 @@ export default function GamesTab({ user }) {
         }
 
         if (!snapshot.empty) {
-          const firestoreMatches = snapshot.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }));
-          setMatches(firestoreMatches);
+          setMatches(
+            snapshot.docs.map((item) => ({
+              id: item.id,
+              ...item.data(),
+            })),
+          );
           setLoading(false);
           return;
         }
@@ -35,7 +35,7 @@ export default function GamesTab({ user }) {
             setMatches(fallbackMatches);
           }
         } catch (error) {
-          console.error("Erro ao carregar fallback de jogos:", error);
+          console.error("Erro ao carregar jogos:", error);
           if (isMounted) {
             setMatches([]);
           }
@@ -64,26 +64,12 @@ export default function GamesTab({ user }) {
   }
 
   return (
-    <div>
-      <div className="games-header">
-        <h2>FASE DE GRUPOS</h2>
+    <div className="content-stack">
+      <div className="section-heading">
+        <h3>⚽ Fase de grupos</h3>
+        <p>Lista compacta com todas as partidas para palpitar rapido no celular.</p>
       </div>
-      <div className="groups-filter">
-        {["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map((group) => (
-          <button
-            key={group}
-            className={`group-filter-btn ${selectedGroup === group ? "active" : ""}`}
-            onClick={() => setSelectedGroup(group)}
-          >
-            Grupo {group}
-          </button>
-        ))}
-      </div>
-      <GroupStageMatchesTable
-        user={user}
-        selectedGroup={selectedGroup}
-        matchesFromSource={matches}
-      />
+      <GroupStageMatchesTable user={user} matchesFromSource={matches} />
     </div>
   );
 }

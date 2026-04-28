@@ -1,8 +1,8 @@
-// src/components/EmailLogin.jsx
 import { useState } from "react";
-import { loginWithEmail, registerWithEmail } from "../firebase";
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider, ensureUserDocument, loginWithEmail, registerWithEmail } from "../firebase";
 
-export default function EmailLogin({ onClose }) {
+export default function EmailLogin() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -11,38 +11,58 @@ export default function EmailLogin({ onClose }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError("");
+    setLoading(true);
+
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      await ensureUserDocument(result.user);
+    } catch (err) {
+      console.error(err);
+      setError("Nao foi possivel entrar com Google.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+
     if (isRegister && password !== confirmPassword) {
-      setError("As senhas não coincidem");
+      setError("As senhas nao coincidem.");
       return;
     }
+
     setLoading(true);
+
     try {
       if (isRegister) {
         await registerWithEmail(email, password, displayName);
       } else {
-        await loginWithEmail(email, password);
+        const result = await loginWithEmail(email, password);
+        await ensureUserDocument(result.user);
       }
-      onClose();
     } catch (err) {
       console.error(err);
+
       switch (err.code) {
         case "auth/user-not-found":
-          setError("Usuário não encontrado");
+          setError("Usuario nao encontrado.");
           break;
         case "auth/wrong-password":
-          setError("Senha incorreta");
+        case "auth/invalid-credential":
+          setError("Credenciais invalidas.");
           break;
         case "auth/email-already-in-use":
-          setError("E-mail já cadastrado");
+          setError("Esse e-mail ja esta cadastrado.");
           break;
         case "auth/weak-password":
-          setError("Senha muito fraca (mínimo 6 caracteres)");
+          setError("A senha precisa ter pelo menos 6 caracteres.");
           break;
         default:
-          setError("Erro ao fazer login. Tente novamente.");
+          setError("Erro ao autenticar. Tente novamente.");
       }
     } finally {
       setLoading(false);
@@ -50,54 +70,83 @@ export default function EmailLogin({ onClose }) {
   };
 
   return (
-    <div className="email-login-modal">
-      <div className="email-login-card">
-        <button className="close-btn" onClick={onClose}>✕</button>
-        <h2>{isRegister ? "Criar conta" : "Entrar com e-mail"}</h2>
-        <form onSubmit={handleSubmit}>
-          {isRegister && (
+    <section className="auth-panel">
+      <div className="auth-panel-header">
+        <span className="panel-kicker">{isRegister ? "Cadastro" : "Login"}</span>
+        <h2>{isRegister ? "Crie seu acesso ✨" : "Entrar no bolao 👋"}</h2>
+        <p>{isRegister ? "Escolha o apelido que aparece no ranking." : "Acesse sua area de palpites e acompanhe sua pontuacao."}</p>
+      </div>
+
+      <button className="auth-social-button" onClick={handleGoogleLogin} disabled={loading} type="button">
+        <span>G</span>
+        <strong>{loading ? "Conectando..." : "Entrar com Google"}</strong>
+      </button>
+
+      <div className="auth-divider">
+        <span>ou</span>
+      </div>
+
+      <form className="auth-form" onSubmit={handleSubmit}>
+        {isRegister && (
+          <label className="input-group">
+            <span>Apelido</span>
             <input
               type="text"
-              placeholder="Nome (opcional)"
+              placeholder="Ex.: Rei do Palpite"
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(event) => setDisplayName(event.target.value)}
             />
-          )}
+          </label>
+        )}
+
+        <label className="input-group">
+          <span>E-mail</span>
           <input
             type="email"
-            placeholder="Seu e-mail"
+            placeholder="voce@exemplo.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(event) => setEmail(event.target.value)}
             required
           />
+        </label>
+
+        <label className="input-group">
+          <span>Senha</span>
           <input
             type="password"
-            placeholder="Senha"
+            placeholder="Sua senha"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             required
           />
-          {isRegister && (
+        </label>
+
+        {isRegister && (
+          <label className="input-group">
+            <span>Confirmar senha</span>
             <input
               type="password"
-              placeholder="Confirmar senha"
+              placeholder="Repita sua senha"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(event) => setConfirmPassword(event.target.value)}
               required
             />
-          )}
-          {error && <div className="error-msg">{error}</div>}
-          <button type="submit" disabled={loading}>
-            {loading ? "Carregando..." : isRegister ? "Registrar" : "Entrar"}
-          </button>
-        </form>
-        <p className="toggle-mode">
-          {isRegister ? "Já tem uma conta?" : "Não tem conta?"}{" "}
-          <button type="button" onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? "Faça login" : "Registre-se"}
-          </button>
-        </p>
+          </label>
+        )}
+
+        {error && <div className="error-msg">{error}</div>}
+
+        <button className="auth-submit-button" type="submit" disabled={loading}>
+          {loading ? "Processando..." : isRegister ? "Criar conta" : "Entrar"}
+        </button>
+      </form>
+
+      <div className="auth-footer">
+        <span>{isRegister ? "Ja tem conta?" : "Ainda nao tem conta?"}</span>
+        <button type="button" onClick={() => setIsRegister((current) => !current)}>
+          {isRegister ? "Fazer login" : "Criar cadastro"}
+        </button>
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Flag } from "../utils/countryCodes";
@@ -14,7 +14,7 @@ const formatDateTime = (startTime) => {
     return "Data invalida";
   }
 
-  return `${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString("pt-BR", {
+  return `${date.toLocaleDateString("pt-BR")} • ${date.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
@@ -33,21 +33,22 @@ const canSavePrediction = (match) => {
   return matchDate > new Date();
 };
 
-export default function GroupStageMatchesTable({ user, selectedGroup, matchesFromSource }) {
-  const [matches, setMatches] = useState([]);
+export default function GroupStageMatchesTable({ user, matchesFromSource }) {
   const [predictions, setPredictions] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [savingAll, setSavingAll] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [feedback, setFeedback] = useState("");
+
+  const matches = useMemo(
+    () =>
+      (matchesFromSource || [])
+        .filter((match) => match.round === "group")
+        .sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0)),
+    [matchesFromSource],
+  );
 
   useEffect(() => {
-    const filteredMatches = (matchesFromSource || [])
-      .filter((match) => match.round === "group" && match.group === selectedGroup)
-      .sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0));
-
-    setMatches(filteredMatches);
-
     const fetchPredictions = async () => {
       if (!user) {
         setPredictions({});
@@ -56,7 +57,7 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
       }
 
       const nextPredictions = {};
-      for (const match of filteredMatches) {
+      for (const match of matches) {
         const predictionRef = doc(db, "predictions", `${user.uid}_${match.id}`);
         const predictionDoc = await getDoc(predictionRef);
         nextPredictions[match.id] = predictionDoc.exists()
@@ -71,10 +72,10 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
     setLoading(true);
     fetchPredictions().catch((error) => {
       console.error("Erro ao carregar palpites:", error);
-      setErrorMessage("Nao foi possivel carregar seus palpites.");
+      setFeedback("Nao foi possivel carregar seus palpites.");
       setLoading(false);
     });
-  }, [matchesFromSource, selectedGroup, user]);
+  }, [matches, user]);
 
   const persistPrediction = async (matchId) => {
     const prediction = predictions[matchId];
@@ -85,18 +86,18 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
     }
 
     if (!canSavePrediction(match)) {
-      throw new Error("Este jogo nao aceita mais palpites.");
+      throw new Error("Esse jogo ja esta fechado para palpites.");
     }
 
     if (prediction.homeScore === "" || prediction.awayScore === "") {
-      throw new Error("Preencha ambos os placares antes de salvar.");
+      throw new Error("Preencha os dois placares.");
     }
 
     const homeScore = Number(prediction.homeScore);
     const awayScore = Number(prediction.awayScore);
 
     if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-      throw new Error("Os placares precisam ser inteiros maiores ou iguais a zero.");
+      throw new Error("Use apenas gols inteiros maiores ou iguais a zero.");
     }
 
     await setDoc(doc(db, "predictions", `${user.uid}_${matchId}`), {
@@ -109,34 +110,34 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
   };
 
   const savePrediction = async (matchId) => {
-    setErrorMessage("");
-    setSaving((previous) => ({ ...previous, [matchId]: true }));
+    setFeedback("");
+    setSaving((current) => ({ ...current, [matchId]: true }));
 
     try {
       await persistPrediction(matchId);
-      setSaving((previous) => ({ ...previous, [matchId]: "saved" }));
+      setSaving((current) => ({ ...current, [matchId]: "saved" }));
       window.setTimeout(() => {
-        setSaving((previous) => ({ ...previous, [matchId]: false }));
-      }, 1000);
+        setSaving((current) => ({ ...current, [matchId]: false }));
+      }, 1200);
     } catch (error) {
       console.error("Erro ao salvar palpite:", error);
-      setErrorMessage(error.message || "Erro ao salvar palpite.");
-      setSaving((previous) => ({ ...previous, [matchId]: false }));
+      setFeedback(error.message || "Erro ao salvar palpite.");
+      setSaving((current) => ({ ...current, [matchId]: false }));
     }
   };
 
   const saveAllPredictions = async () => {
-    const validMatches = matches.filter((match) => canSavePrediction(match));
-    if (validMatches.length === 0) {
-      setErrorMessage("Nao ha jogos desbloqueados para salvar neste grupo.");
+    const openMatches = matches.filter((match) => canSavePrediction(match));
+    if (openMatches.length === 0) {
+      setFeedback("Nao ha jogos abertos para salvar no momento.");
       return;
     }
 
-    setErrorMessage("");
     setSavingAll(true);
+    setFeedback("");
 
     try {
-      for (const match of validMatches) {
+      for (const match of openMatches) {
         const prediction = predictions[match.id];
         if (!prediction || prediction.homeScore === "" || prediction.awayScore === "") {
           continue;
@@ -144,9 +145,11 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
 
         await persistPrediction(match.id);
       }
+
+      setFeedback("Palpites enviados com sucesso.");
     } catch (error) {
-      console.error("Erro ao salvar palpites do grupo:", error);
-      setErrorMessage(error.message || "Erro ao salvar palpites.");
+      console.error("Erro ao salvar palpites:", error);
+      setFeedback(error.message || "Erro ao salvar palpites.");
     } finally {
       setSavingAll(false);
     }
@@ -157,48 +160,41 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
   }
 
   return (
-    <div className="matches-table-container">
-      <div className="table-header-actions">
-        <h2>Grupo {selectedGroup}</h2>
+    <div className="group-list-shell">
+      <div className="group-list-toolbar">
+        <span className="panel-pill">72 jogos</span>
         <button onClick={saveAllPredictions} disabled={savingAll} className="save-all-btn">
-          {savingAll ? "Salvando..." : "Salvar todos"}
+          {savingAll ? "Enviando..." : "Salvar palpites"}
         </button>
       </div>
 
-      {errorMessage && <div className="admin-message">{errorMessage}</div>}
+      {feedback && <div className="inline-feedback">{feedback}</div>}
 
-      <table className="matches-planilha">
-        <thead>
-          <tr>
-            <th>Data/Hora</th>
-            <th>Mandante</th>
-            <th>Gols</th>
-            <th></th>
-            <th>Gols</th>
-            <th>Visitante</th>
-            <th>Acoes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {matches.map((match) => {
-            const prediction = predictions[match.id] || { homeScore: "", awayScore: "" };
-            const isOpen = canSavePrediction(match);
+      <div className="group-match-list">
+        {matches.map((match) => {
+          const prediction = predictions[match.id] || { homeScore: "", awayScore: "" };
+          const isOpen = canSavePrediction(match);
 
-            return (
-              <tr key={match.id}>
-                <td>{formatDateTime(match.startTime)}</td>
-                <td className="team-cell">
-                  <Flag teamName={match.homeTeam} size={24} />
-                  {getTeamNamePortuguese(match.homeTeam)}
-                </td>
-                <td>
+          return (
+            <article key={match.id} className="group-match-card">
+              <div className="group-match-topline">
+                <span className="group-badge">Grupo {match.group}</span>
+                <span>{formatDateTime(match.startTime)}</span>
+              </div>
+
+              <div className="group-match-teams">
+                <div className="compact-team">
+                  <Flag teamName={match.homeTeam} size={26} />
+                  <strong>{getTeamNamePortuguese(match.homeTeam)}</strong>
+                </div>
+                <div className="compact-score-inputs">
                   <input
                     type="number"
                     min="0"
                     value={prediction.homeScore}
                     onChange={(event) =>
-                      setPredictions((previous) => ({
-                        ...previous,
+                      setPredictions((current) => ({
+                        ...current,
                         [match.id]: {
                           ...prediction,
                           homeScore: event.target.value,
@@ -207,16 +203,14 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
                     }
                     disabled={!isOpen}
                   />
-                </td>
-                <td>X</td>
-                <td>
+                  <span>x</span>
                   <input
                     type="number"
                     min="0"
                     value={prediction.awayScore}
                     onChange={(event) =>
-                      setPredictions((previous) => ({
-                        ...previous,
+                      setPredictions((current) => ({
+                        ...current,
                         [match.id]: {
                           ...prediction,
                           awayScore: event.target.value,
@@ -225,29 +219,27 @@ export default function GroupStageMatchesTable({ user, selectedGroup, matchesFro
                     }
                     disabled={!isOpen}
                   />
-                </td>
-                <td className="team-cell">
-                  <Flag teamName={match.awayTeam} size={24} />
-                  {getTeamNamePortuguese(match.awayTeam)}
-                </td>
-                <td>
-                  {isOpen ? (
-                    <button
-                      onClick={() => savePrediction(match.id)}
-                      disabled={Boolean(saving[match.id])}
-                      className="save-row-btn"
-                    >
-                      {saving[match.id] === "saved" ? "OK" : saving[match.id] ? "..." : "Salvar"}
-                    </button>
-                  ) : (
-                    <span>Fechado</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                </div>
+                <div className="compact-team compact-team--right">
+                  <strong>{getTeamNamePortuguese(match.awayTeam)}</strong>
+                  <Flag teamName={match.awayTeam} size={26} />
+                </div>
+              </div>
+
+              <div className="group-match-actions">
+                <span>{isOpen ? "Aberto para palpite" : "Jogo fechado"}</span>
+                <button
+                  onClick={() => savePrediction(match.id)}
+                  disabled={!isOpen || Boolean(saving[match.id])}
+                  className="save-row-btn"
+                >
+                  {saving[match.id] === "saved" ? "✅ Salvo" : saving[match.id] ? "..." : "Salvar"}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </div>
   );
 }

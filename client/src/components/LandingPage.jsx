@@ -1,54 +1,56 @@
-// src/components/LandingPage.jsx
-import { useState } from "react";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "../firebase";
-import Ranking from "./Ranking";
 import EmailLogin from "./EmailLogin";
+import Ranking from "./Ranking";
 
 export default function LandingPage() {
-  const [showEmailModal, setShowEmailModal] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (error) {
-      console.error(error);
-      alert("Erro no login com Google.");
-    }
-  };
-
   return (
     <div className="landing-page">
-      <div className="landing-hero">
-        <div className="hero-badge">COPA DO MUNDO 2026</div>
-        <h1 className="hero-title">
-          APOSTE. PARTICIPE. <span>SEJA CAMPEÃO!</span>
-        </h1>
-        <p className="hero-subtitle">
-          Mostre que você entende de futebol e conquiste o topo do ranking!
-        </p>
-        <div className="hero-buttons">
-          <button className="btn-google" onClick={handleGoogleLogin}>
-            🏆 Entrar com Google
-          </button>
-          <button className="btn-email" onClick={() => setShowEmailModal(true)}>
-            📧 Entrar com e-mail
-          </button>
-        </div>
-      </div>
+      <section className="landing-mobile-shell">
+        <div className="phone-frame">
+          <div className="phone-notch" />
 
-      <div className="landing-ranking">
-        <h2>📊 RANKING DE APOSTAS</h2>
-        <Ranking limit={7} />
-        <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-          <p className="hero-note">
-            FAÇA SUAS MELHORES APOSTAS E SUBA NO RANKING!<br />
-            Cada palpite conta!
-          </p>
-        </div>
-      </div>
+          <div className="phone-screen">
+            <header className="phone-header">
+              <div className="phone-status">
+                <span>9:41</span>
+                <span>📶 🔋</span>
+              </div>
 
-      {showEmailModal && <EmailLogin onClose={() => setShowEmailModal(false)} />}
+              <div className="phone-brand">
+                <img src="/worldcup2026-logo.png" alt="Logo Copa 2026" className="phone-brand-logo" />
+                <div>
+                  <span className="panel-kicker">Bolao da Copa</span>
+                  <h1>World Cup 2026 ⚽</h1>
+                </div>
+              </div>
+            </header>
+
+            <section className="phone-banner">
+              <div className="phone-banner-copy">
+                <span className="phone-chip">🔥 Live ranking</span>
+                <strong>Login rapido, palpites por fase e ranking sempre visivel no celular.</strong>
+              </div>
+
+              <img src="/logo1.png" alt="Arte do bolao" className="phone-banner-art" />
+            </section>
+
+            <div className="landing-stack">
+              <EmailLogin />
+
+              <section className="ranking-panel">
+                <div className="ranking-panel-header">
+                  <div>
+                    <span className="panel-kicker">Ranking atual</span>
+                    <h2>Apostadores do bolao 🏆</h2>
+                  </div>
+                  <span className="panel-pill">Ao vivo</span>
+                </div>
+
+                <Ranking limit={10} />
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

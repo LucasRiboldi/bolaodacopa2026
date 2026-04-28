@@ -1,53 +1,62 @@
-// src/components/UserDashboard.jsx
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import GamesTab from "./GamesTab";
-import Ranking from "./Ranking";
-import GroupStandings from "./GroupStandings";
-import UserProfile from "./UserProfile";
+import KnockoutBracket from "./KnockoutBracket";
 
-export default function UserDashboard({ user }) {
-  const [activeTab, setActiveTab] = useState("inicio");
+export default function UserDashboard({ user, userProfile, displayName }) {
+  const [activeTab, setActiveTab] = useState("groups");
   const [userPoints, setUserPoints] = useState(0);
 
   useEffect(() => {
     const fetchUserPoints = async () => {
-      if (!user) return;
+      if (!user) {
+        return;
+      }
+
       const rankDoc = await getDoc(doc(db, "rankings", user.uid));
-      if (rankDoc.exists()) setUserPoints(rankDoc.data().totalPoints || 0);
+      if (rankDoc.exists()) {
+        setUserPoints(rankDoc.data().totalPoints || 0);
+      }
     };
+
     fetchUserPoints();
   }, [user]);
 
   return (
     <div className="user-dashboard">
-      <div className="dashboard-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div>
-          <h2>Olá, {user.displayName || user.email}!</h2>
-          <p>⭐ Seus pontos: <strong>{userPoints}</strong></p>
+      <section className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <span className="panel-kicker">⚽ Seu jogo</span>
+          <h2>Ola, {displayName}</h2>
+          <p>Palpite jogo a jogo na fase de grupos e monte os avancos do mata-mata oficial da Copa 2026.</p>
         </div>
-        <img src={user.photoURL || "/default-avatar.png"} alt="avatar" className="user-avatar" style={{ width: 60, height: 60 }} />
-      </div>
+
+        <div className="dashboard-score-card">
+          <img
+            src={user.photoURL || userProfile?.photoURL || "/default-avatar.png"}
+            alt={displayName}
+            className="user-avatar user-avatar--large"
+          />
+          <div>
+            <span className="dashboard-score-label">Pontuacao atual</span>
+            <strong className="dashboard-score-value">{userPoints} pts</strong>
+          </div>
+        </div>
+      </section>
 
       <div className="dashboard-tabs">
-        <button className={activeTab === "inicio" ? "active" : ""} onClick={() => setActiveTab("inicio")}>🏠 INÍCIO</button>
-        <button className={activeTab === "ranking" ? "active" : ""} onClick={() => setActiveTab("ranking")}>📊 RANKING</button>
-        <button className={activeTab === "jogos" ? "active" : ""} onClick={() => setActiveTab("jogos")}>⚽ JOGOS</button>
-        <button className={activeTab === "perfil" ? "active" : ""} onClick={() => setActiveTab("perfil")}>👤 PERFIL</button>
+        <button className={activeTab === "groups" ? "active" : ""} onClick={() => setActiveTab("groups")}>
+          ⚽ Fase de grupos
+        </button>
+        <button className={activeTab === "knockout" ? "active" : ""} onClick={() => setActiveTab("knockout")}>
+          🏆 Mata-mata
+        </button>
       </div>
 
       <div className="dashboard-content">
-        {activeTab === "inicio" && (
-          <div>
-            <h3>🎯 Próximos confrontos</h3>
-            <p>Acompanhe seus palpites e veja a tabela de classificação.</p>
-            <GroupStandings />
-          </div>
-        )}
-        {activeTab === "ranking" && <Ranking />}
-        {activeTab === "jogos" && <GamesTab user={user} />}
-        {activeTab === "perfil" && <UserProfile user={user} />}
+        {activeTab === "groups" && <GamesTab user={user} />}
+        {activeTab === "knockout" && <KnockoutBracket user={user} />}
       </div>
     </div>
   );
