@@ -2,29 +2,31 @@ name: Sync Matches from API-FOOTBALL
 
 on:
   schedule:
-    - cron: '0 */6 * * *'      # Executa a cada 6 horas
-  workflow_dispatch:             # Permite execução manual pela interface do GitHub
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
 
-      - name: Instalar dependências do script
-        run: |
-          cd scripts
-          npm install
+      - name: Install script dependencies
+        run: npm ci
+        working-directory: scripts
 
-      - name: Executar sincronização
+      - name: Run sync script
+        run: node syncMatches.js
+        working-directory: scripts
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-        run: node scripts/syncMatches.js

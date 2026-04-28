@@ -1,65 +1,51 @@
-// scripts/syncMatches.js
-const admin = require('firebase-admin');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const admin = require("firebase-admin");
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
-// ================== CONFIGURAÇÕES ==================
-const API_KEY = 'a43dd2c524991ea0a580de75b369596e'; // Sua chave da API-FOOTBALL
+const API_KEY = process.env.API_FOOTBALL_KEY;
 
-// ================== CARREGAR CREDENCIAIS DO FIREBASE ==================
-let serviceAccount;
-
-// Tenta carregar do arquivo local primeiro
-const filePath = path.join(__dirname, 'serviceAccountKey.json');
-if (fs.existsSync(filePath)) {
-  try {
-    serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    console.log('✅ Credenciais carregadas do arquivo serviceAccountKey.json');
-  } catch (err) {
-    console.error('❌ Erro ao ler serviceAccountKey.json:', err.message);
-    process.exit(1);
-  }
-} 
-// Se não houver arquivo, tenta a variável de ambiente
-else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    console.log('✅ Credenciais carregadas da variável FIREBASE_SERVICE_ACCOUNT');
-  } catch (err) {
-    console.error('❌ Erro ao parsear FIREBASE_SERVICE_ACCOUNT:', err.message);
-    process.exit(1);
-  }
-} 
-else {
-  console.error('❌ Nenhuma credencial encontrada.');
-  console.error('   Opção 1: Baixe o arquivo serviceAccountKey.json do Firebase Console e coloque na pasta "scripts/".');
-  console.error('   Opção 2: Defina a variável de ambiente FIREBASE_SERVICE_ACCOUNT com o JSON da chave de serviço.');
+if (!API_KEY) {
+  console.error("API_FOOTBALL_KEY nao configurada.");
   process.exit(1);
 }
 
-// Inicializa o Firebase Admin
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+let serviceAccount;
+const serviceAccountPath = path.join(__dirname, "serviceAccountKey.json");
 
-// ================== MAPEAMENTO DE NOMES ==================
-const teamNameMap = {
-  "United States": "USA",
-  "Korea Republic": "South Korea",
-  "Czechia": "Czech Republic",
-  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
-  "Côte d'Ivoire": "Ivory Coast",
-  "Cape Verde Islands": "Cape Verde",
-  "DR Congo": "DR Congo",
-  "Curacao": "Curacao",
-};
-
-function normalize(apiName) {
-  return teamNameMap[apiName] || apiName;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (error) {
+    console.error("Erro ao interpretar FIREBASE_SERVICE_ACCOUNT:", error.message);
+    process.exit(1);
+  }
+} else if (fs.existsSync(serviceAccountPath)) {
+  serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+} else {
+  console.error("Nenhuma credencial do Firebase encontrada.");
+  process.exit(1);
 }
 
-// ================== GRUPOS ==================
-const groups = {
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const db = admin.firestore();
+
+const TEAM_NAME_MAP = {
+  "United States": "USA",
+  "Korea Republic": "South Korea",
+  Czechia: "Czech Republic",
+  "Bosnia-Herzegovina": "Bosnia and Herzegovina",
+  "Cote d'Ivoire": "Ivory Coast",
+  "Cape Verde Islands": "Cape Verde",
+  "DR Congo": "DR Congo",
+  Curacao: "Curacao",
+};
+
+const GROUPS = {
   A: ["Mexico", "South Africa", "South Korea", "Czech Republic"],
   B: ["Canada", "Bosnia and Herzegovina", "Qatar", "Switzerland"],
   C: ["Brazil", "Morocco", "Haiti", "Scotland"],
@@ -74,80 +60,90 @@ const groups = {
   L: ["England", "Croatia", "Panama", "Ghana"],
 };
 
-function getGroupByTeam(teamName) {
-  for (const [group, teams] of Object.entries(groups)) {
-    if (teams.includes(teamName)) return group;
-  }
-  return null;
-}
+const normalizeTeamName = (apiName) => TEAM_NAME_MAP[apiName] || apiName;
 
-// ================== SINCRONIZAÇÃO PRINCIPAL ==================
+const getGroupByTeam = (teamName) => {
+  for (const [group, teams] of Object.entries(GROUPS)) {
+    if (teams.includes(teamName)) {
+      return group;
+    }
+  }
+
+  return null;
+};
+
+const resolveRound = (roundName = "") => {
+  if (roundName.includes("Round of 16")) return "round16";
+  if (roundName.includes("Quarter")) return "quarter";
+  if (roundName.includes("Semi")) return "semi";
+  if (roundName.includes("Final")) return "final";
+  return "group";
+};
+
 async function syncMatches() {
-  console.log('🚀 Buscando jogos da Copa 2026 via API-FOOTBALL...');
+  console.log("Buscando jogos da Copa 2026 via API-FOOTBALL...");
+
   try {
-    const response = await axios.get('https://v3.football.api-sports.io/fixtures', {
-      headers: { 'x-apisports-key': API_KEY },
-      params: { league: 1, season: 2026 }
+    const response = await axios.get("https://v3.football.api-sports.io/fixtures", {
+      headers: { "x-apisports-key": API_KEY },
+      params: { league: 1, season: 2026 },
     });
-    const fixtures = response.data.response;
-    if (!fixtures.length) {
-      console.log('⚠️ Nenhum jogo encontrado para a temporada 2026.');
+
+    const fixtures = response.data?.response ?? [];
+    if (fixtures.length === 0) {
+      console.log("Nenhum jogo encontrado para a temporada 2026.");
       return;
     }
-    console.log(`📋 Encontrados ${fixtures.length} jogos.`);
 
     const batch = db.batch();
     let updatedCount = 0;
     let skippedCount = 0;
 
     for (const fixture of fixtures) {
-      let homeTeam = normalize(fixture.teams.home.name);
-      let awayTeam = normalize(fixture.teams.away.name);
-      const homeGroup = getGroupByTeam(homeTeam);
-      const awayGroup = getGroupByTeam(awayTeam);
+      const homeTeam = normalizeTeamName(fixture.teams?.home?.name);
+      const awayTeam = normalizeTeamName(fixture.teams?.away?.name);
+      const round = resolveRound(fixture.league?.round);
+      const group = round === "group"
+        ? getGroupByTeam(homeTeam) || getGroupByTeam(awayTeam)
+        : null;
 
-      if (!homeGroup && !awayGroup) {
-        console.warn(`⚠️ Ambos os times sem grupo: ${homeTeam} x ${awayTeam} – ignorado.`);
-        skippedCount++;
+      if (round === "group" && !group) {
+        skippedCount += 1;
         continue;
       }
 
-      const group = homeGroup || awayGroup;
-      let round = "group";
-      const roundName = fixture.league.round || "";
-      if (roundName.includes("Round of 16")) round = "round16";
-      else if (roundName.includes("Quarter")) round = "quarter";
-      else if (roundName.includes("Semi")) round = "semi";
-      else if (roundName.includes("Final")) round = "final";
+      const id = (round === "group"
+        ? `${group}_${homeTeam}_vs_${awayTeam}`
+        : `${round}_${homeTeam}_vs_${awayTeam}`).replace(/\s/g, "_");
 
-      const id = round === "group"
-        ? `${group}_${homeTeam}_vs_${awayTeam}`.replace(/\s/g, '_')
-        : `${round}_${homeTeam}_vs_${awayTeam}`.replace(/\s/g, '_');
-
-      const matchData = {
+      batch.set(db.collection("matches").doc(id), {
         id,
         round,
-        group: round === "group" ? group : null,
+        group,
         homeTeam,
         awayTeam,
-        homeScore: fixture.goals.home ?? null,
-        awayScore: fixture.goals.away ?? null,
-        date: fixture.fixture.date.split('T')[0],
-        time: fixture.fixture.time,
-        stadium: fixture.fixture.venue.name,
-        startTime: fixture.fixture.date,
-        status: fixture.fixture.status.long || "Not Started",
-      };
+        homeScore: fixture.goals?.home ?? null,
+        awayScore: fixture.goals?.away ?? null,
+        date: fixture.fixture?.date?.split("T")[0] ?? null,
+        time: fixture.fixture?.date
+          ? new Date(fixture.fixture.date).toISOString().slice(11, 16)
+          : null,
+        stadium: fixture.fixture?.venue?.name ?? "A definir",
+        startTime: fixture.fixture?.date ?? null,
+        status: fixture.fixture?.status?.long || "Not Started",
+      }, { merge: true });
 
-      batch.set(db.collection('matches').doc(id), matchData, { merge: true });
-      updatedCount++;
+      updatedCount += 1;
     }
 
     await batch.commit();
-    console.log(`✅ Sincronização concluída: ${updatedCount} jogos processados, ${skippedCount} ignorados.`);
+    console.log(`Sincronizacao concluida: ${updatedCount} jogos atualizados, ${skippedCount} ignorados.`);
   } catch (error) {
-    console.error('❌ Erro na sincronização:', error.message);
-    if (error.response) console.error(error.response.data);
+    console.error("Erro na sincronizacao:", error.message);
+    if (error.response?.data) {
+      console.error(error.response.data);
+    }
+    process.exit(1);
   }
 }
 

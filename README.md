@@ -100,10 +100,10 @@ Siga estas etapas com calma – em menos de 10 minutos seu bolão estará rodand
 
 ```bash
 # Clone o projeto
-git clone https://github.com/LucasRiboldi/bolao-2026.git
+git clone https://github.com/LucasRiboldi/bolaodacopa2026.git
 
 # Entre na pasta
-cd bolao-2026/client
+cd bolaodacopa2026/client
 
 # Instale dependências
 npm install

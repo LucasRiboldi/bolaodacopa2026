@@ -130,7 +130,7 @@ export default function GroupStandings() {
                       <td className="position">{idx + 1}</td>
                       <td className="team-name-cell">
                         <div className="team-with-flag">
-                          <Flag teamName={getTeamNamePortuguese(team.team)} size={24} />
+                          <Flag teamName={team.team} size={24} />
                           <span>{getTeamNamePortuguese(team.team)}</span>
                         </div>
                       </td>

@@ -1,21 +1,45 @@
-// src/components/AdminPanel.jsx
-import { useState, useEffect } from "react";
-import { collection, getDocs, doc, setDoc, updateDoc, getDoc, writeBatch, deleteDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { Flag } from "../utils/countryCodes";
-import { groups, allTeams } from "../utils/groupConfig";
+import { groups } from "../utils/groupConfig";
 import { calculateAllScores } from "../utils/scoringEngine";
+
+const DEFAULT_SCORING = {
+  exactScore: 6,
+  correctResult: 2,
+  twoCorrectClassified: 5,
+  oneCorrectClassified: 2,
+  correctOrderBonus: 3,
+};
+
+const parseScoreInput = (value) => {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+};
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("groups");
   const [users, setUsers] = useState([]);
   const [groupMatches, setGroupMatches] = useState([]);
-  // FUTURO: knockoutMatches será usado quando o mata‑mata for implementado
-  // const [knockoutMatches, setKnockoutMatches] = useState({ round16: [], quarter: [], semi: [], final: [] });
-  const [scoring, setScoring] = useState({
-    exactScore: 6, correctResult: 2, twoCorrectClassified: 5, oneCorrectClassified: 2, correctOrderBonus: 3,
-    /* FUTURO: round16: 4, quarter: 6, semi: 10, finalWinner: 12, semiFinalistEach: 5, finalistEach: 7, champion: 12 */
-  });
+  const [scoring, setScoring] = useState(DEFAULT_SCORING);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
@@ -23,251 +47,434 @@ export default function AdminPanel() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        const usersList = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const predictionsSnap = await getDocs(collection(db, "predictions"));
-        const predCount = {};
-        predictionsSnap.forEach(doc => { predCount[doc.data().userId] = (predCount[doc.data().userId] || 0) + 1; });
-        // FUTURO: knockoutSnap removido por enquanto
-        setUsers(usersList.map(u => ({ ...u, predictionsCount: predCount[u.id] || 0 })));
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const usersList = usersSnapshot.docs.map((userDoc) => ({
+          id: userDoc.id,
+          ...userDoc.data(),
+        }));
 
-        const configDoc = await getDoc(doc(db, "config", "scoring"));
-        if (configDoc.exists()) setScoring(configDoc.data());
+        const predictionsSnapshot = await getDocs(collection(db, "predictions"));
+        const predictionCount = {};
+        predictionsSnapshot.forEach((predictionDoc) => {
+          const prediction = predictionDoc.data();
+          predictionCount[prediction.userId] = (predictionCount[prediction.userId] || 0) + 1;
+        });
+
+        setUsers(
+          usersList.map((user) => ({
+            ...user,
+            predictionsCount: predictionCount[user.id] || 0,
+          })),
+        );
+
+        const configSnapshot = await getDoc(doc(db, "config", "scoring"));
+        if (configSnapshot.exists()) {
+          setScoring({ ...DEFAULT_SCORING, ...configSnapshot.data() });
+        }
 
         await refreshMatches();
-      } catch (error) { console.error(error); } finally { setLoading(false); }
+      } catch (error) {
+        console.error("Erro ao carregar painel admin:", error);
+      } finally {
+        setLoading(false);
+      }
     };
+
     fetchData();
   }, []);
 
   const refreshMatches = async () => {
-    const matchesSnap = await getDocs(collection(db, "matches"));
-    const allMatches = matchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setGroupMatches(allMatches.filter(m => m.round === "group" || !m.round));
-    // FUTURO: setKnockoutMatches({ round16: allMatches.filter(m => m.round === "round16"), ... });
+    const matchesSnapshot = await getDocs(collection(db, "matches"));
+    const allMatches = matchesSnapshot.docs.map((matchDoc) => ({
+      id: matchDoc.id,
+      ...matchDoc.data(),
+    }));
+
+    setGroupMatches(
+      allMatches
+        .filter((match) => match.round === "group" || !match.round)
+        .sort((first, second) => new Date(first.startTime || 0) - new Date(second.startTime || 0)),
+    );
   };
 
   const saveScoring = async () => {
-    try { await setDoc(doc(db, "config", "scoring"), scoring); setMessage("✅ Critérios salvos!"); setTimeout(() => setMessage(""), 3000); } 
-    catch (error) { setMessage("❌ Erro ao salvar."); }
+    try {
+      await setDoc(doc(db, "config", "scoring"), scoring);
+      setMessage("Criterios salvos com sucesso.");
+      window.setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar configuracao:", error);
+      setMessage("Erro ao salvar criterios.");
+    }
   };
 
-  const updateMatchResult = async (matchId, homeScore, awayScore) => {
+  const updateMatchResult = async (matchId, nextHomeScore, nextAwayScore) => {
+    const homeScore = parseScoreInput(nextHomeScore);
+    const awayScore = parseScoreInput(nextAwayScore);
+
+    if ((nextHomeScore !== "" && homeScore === null) || (nextAwayScore !== "" && awayScore === null)) {
+      setMessage("Use apenas placares inteiros maiores ou iguais a zero.");
+      return;
+    }
+
     try {
       const matchRef = doc(db, "matches", matchId);
-      const matchSnap = await getDoc(matchRef);
-      const matchData = matchSnap.data();
-      let updateData = { homeScore: parseInt(homeScore) || null, awayScore: parseInt(awayScore) || null };
-      
-      if (!matchData.startTime || isNaN(new Date(matchData.startTime).getTime())) {
-        const defaultStart = new Date(2026, 5, 11, 12, 0, 0);
+      const matchSnapshot = await getDoc(matchRef);
+      if (!matchSnapshot.exists()) {
+        setMessage("Jogo nao encontrado.");
+        return;
+      }
+
+      const matchData = matchSnapshot.data();
+      const updateData = {
+        homeScore,
+        awayScore,
+      };
+
+      if (!matchData.startTime || Number.isNaN(new Date(matchData.startTime).getTime())) {
+        const defaultStart = new Date(Date.UTC(2026, 5, 11, 15, 0, 0));
         updateData.startTime = defaultStart.toISOString();
-        updateData.date = defaultStart.toISOString().split('T')[0];
+        updateData.date = defaultStart.toISOString().split("T")[0];
         updateData.time = "12:00";
       }
+
       await updateDoc(matchRef, updateData);
-      setMessage("✅ Resultado atualizado!");
-      refreshMatches();
-    } catch (error) { setMessage("❌ Erro ao atualizar."); }
+      setMessage("Resultado atualizado.");
+      await refreshMatches();
+    } catch (error) {
+      console.error("Erro ao atualizar resultado:", error);
+      setMessage("Erro ao atualizar resultado.");
+    }
   };
 
   const deleteMatch = async (matchId) => {
-    if (window.confirm("Remover este jogo permanentemente?")) { await deleteDoc(doc(db, "matches", matchId)); setMessage("✅ Jogo removido"); refreshMatches(); }
+    if (!window.confirm("Remover este jogo permanentemente?")) {
+      return;
+    }
+
+    await deleteDoc(doc(db, "matches", matchId));
+    setMessage("Jogo removido.");
+    await refreshMatches();
   };
 
   const createGroupStageMatches = async () => {
-    setMessage("🚀 Criando 72 jogos da fase de grupos...");
-    let total = 0;
+    setMessage("Criando jogos da fase de grupos...");
+
     try {
-      const baseDate = new Date(2026, 5, 11, 13, 0, 0);
+      const baseDate = new Date(Date.UTC(2026, 5, 11, 16, 0, 0));
+      let total = 0;
       let matchCounter = 0;
+
       for (const [group, teams] of Object.entries(groups)) {
-        for (let i = 0; i < teams.length; i++) {
-          for (let j = i + 1; j < teams.length; j++) {
-            const id = `${group}_${teams[i]}_vs_${teams[j]}`.replace(/\s/g, '_');
+        for (let homeIndex = 0; homeIndex < teams.length; homeIndex += 1) {
+          for (let awayIndex = homeIndex + 1; awayIndex < teams.length; awayIndex += 1) {
             const gameDate = new Date(baseDate);
-            gameDate.setDate(baseDate.getDate() + Math.floor(matchCounter / 6));
-            gameDate.setHours(13 + (matchCounter % 6) * 2, 0, 0, 0);
-            const startTimeISO = gameDate.toISOString();
+            gameDate.setUTCDate(baseDate.getUTCDate() + Math.floor(matchCounter / 6));
+            gameDate.setUTCHours(16 + (matchCounter % 6) * 2, 0, 0, 0);
+
+            const id = `${group}_${teams[homeIndex]}_vs_${teams[awayIndex]}`.replace(/\s/g, "_");
             await setDoc(doc(db, "matches", id), {
-              id, round: "group", group, homeTeam: teams[i], awayTeam: teams[j],
-              homeScore: null, awayScore: null, date: startTimeISO.split('T')[0],
-              time: `${gameDate.getHours().toString().padStart(2,'0')}:00`,
-              stadium: "A definir", startTime: startTimeISO, status: "Not Started",
+              id,
+              round: "group",
+              group,
+              homeTeam: teams[homeIndex],
+              awayTeam: teams[awayIndex],
+              homeScore: null,
+              awayScore: null,
+              date: gameDate.toISOString().split("T")[0],
+              time: gameDate.toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+                timeZone: "America/Sao_Paulo",
+              }),
+              stadium: "A definir",
+              startTime: gameDate.toISOString(),
+              status: "Not Started",
             });
-            total++;
-            matchCounter++;
+
+            total += 1;
+            matchCounter += 1;
           }
         }
       }
-      setMessage(`✅ ${total} jogos criados com sucesso!`);
-      refreshMatches();
-    } catch (error) { console.error(error); setMessage("❌ Erro ao criar os jogos."); } finally { setTimeout(() => setMessage(""), 3000); }
+
+      setMessage(`${total} jogos criados com sucesso.`);
+      await refreshMatches();
+    } catch (error) {
+      console.error("Erro ao criar jogos:", error);
+      setMessage("Erro ao criar jogos.");
+    } finally {
+      window.setTimeout(() => setMessage(""), 3000);
+    }
   };
 
-  // FUTURO: createKnockoutMatches, addKnockoutMatch serão implementados depois
-
   const importMatchesFromJSON = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
     setImporting(true);
-    setMessage("📂 Lendo arquivo JSON...");
+    setMessage("Lendo arquivo JSON...");
+
     try {
       const text = await file.text();
       const matchesData = JSON.parse(text);
-      if (!Array.isArray(matchesData)) throw new Error("Arquivo JSON deve conter um array de jogos.");
-      setMessage(`📋 ${matchesData.length} jogos encontrados. Importando...`);
+
+      if (!Array.isArray(matchesData)) {
+        throw new Error("O arquivo JSON precisa conter um array de jogos.");
+      }
+
       let batch = writeBatch(db);
       let count = 0;
-      let commitCount = 0;
+
       for (const match of matchesData) {
-        if (!match.id) continue;
-        let validStartTime = match.startTime;
-        if (!validStartTime || isNaN(new Date(validStartTime).getTime())) {
-          const defaultDate = new Date(2026, 5, 11, 12, 0);
-          validStartTime = defaultDate.toISOString();
-          match.startTime = validStartTime;
-          match.date = validStartTime.split('T')[0];
-          match.time = "12:00";
+        if (!match.id) {
+          continue;
         }
-        batch.set(doc(db, "matches", match.id), match, { merge: true });
-        count++;
+
+        const validStartTime = match.startTime && !Number.isNaN(new Date(match.startTime).getTime())
+          ? match.startTime
+          : new Date(Date.UTC(2026, 5, 11, 15, 0, 0)).toISOString();
+
+        batch.set(doc(db, "matches", match.id), {
+          ...match,
+          startTime: validStartTime,
+          date: match.date || validStartTime.split("T")[0],
+          time: match.time || "12:00",
+        }, { merge: true });
+
+        count += 1;
+
         if (count % 500 === 0) {
           await batch.commit();
-          commitCount++;
-          setMessage(`🔄 Lote ${commitCount} commitado (${count} documentos)`);
           batch = writeBatch(db);
         }
       }
-      if (count % 500 !== 0) await batch.commit();
-      setMessage(`✅ Importação concluída! ${count} jogos atualizados/criados.`);
-      refreshMatches();
+
+      if (count % 500 !== 0) {
+        await batch.commit();
+      }
+
+      setMessage(`Importacao concluida: ${count} jogos atualizados.`);
+      await refreshMatches();
     } catch (error) {
-      console.error(error);
-      setMessage(`❌ Erro ao importar: ${error.message}`);
+      console.error("Erro ao importar jogos:", error);
+      setMessage(`Erro ao importar jogos: ${error.message}`);
     } finally {
       setImporting(false);
       event.target.value = "";
-      setTimeout(() => setMessage(""), 5000);
+      window.setTimeout(() => setMessage(""), 5000);
     }
   };
 
   const calculateFullRanking = async () => {
-    setMessage("🔄 Calculando pontuação total...");
+    setMessage("Calculando ranking...");
+
     try {
       const scoresMap = await calculateAllScores();
       const batch = writeBatch(db);
+
       for (const [userId, score] of scoresMap.entries()) {
         batch.set(doc(db, "rankings", userId), {
           userId,
           totalPoints: score.total,
           details: score.details,
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
         });
       }
+
       await batch.commit();
-      setMessage(`✅ Ranking calculado para ${scoresMap.size} usuários!`);
+      setMessage(`Ranking recalculado para ${scoresMap.size} usuarios.`);
     } catch (error) {
-      console.error(error);
-      setMessage("❌ Erro ao calcular pontuação total.");
+      console.error("Erro ao recalcular ranking:", error);
+      setMessage("Erro ao calcular ranking.");
     }
   };
 
-  if (loading) return <div>Carregando painel...</div>;
+  if (loading) {
+    return <div>Carregando painel...</div>;
+  }
 
-  const MatchList = ({ matches, roundTitle, allowDelete = false }) => {
-    return (
-      <div className="admin-section">
-        <h3 className="admin-section-title">{roundTitle}</h3>
-        {matches.length === 0 && <p className="admin-empty">Nenhum jogo cadastrado nesta fase.</p>}
-        <div className="matches-admin-list">
-          {matches.map(match => (
-            <div key={match.id} className="match-edit-card">
-              <div className="match-info">
-                <div className="team-with-flag"><Flag teamName={match.homeTeam} size={28} /><strong>{match.homeTeam}</strong></div>
-                <span>vs</span>
-                <div className="team-with-flag"><Flag teamName={match.awayTeam} size={28} /><strong>{match.awayTeam}</strong></div>
-                <div className="match-datetime">
-                  {match.startTime && !isNaN(new Date(match.startTime).getTime()) ? 
-                    `${new Date(match.startTime).toLocaleDateString()} ${new Date(match.startTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : 
-                    "Data inválida"}
-                </div>
+  const MatchList = ({ matches, roundTitle, allowDelete = false }) => (
+    <div className="admin-section">
+      <h3 className="admin-section-title">{roundTitle}</h3>
+      {matches.length === 0 && <p className="admin-empty">Nenhum jogo cadastrado nesta fase.</p>}
+      <div className="matches-admin-list">
+        {matches.map((match) => (
+          <div key={match.id} className="match-edit-card">
+            <div className="match-info">
+              <div className="team-with-flag">
+                <Flag teamName={match.homeTeam} size={28} />
+                <strong>{match.homeTeam}</strong>
               </div>
-              <div className="score-edit">
-                <input type="number" placeholder="gols casa" defaultValue={match.homeScore ?? ""} onBlur={(e) => updateMatchResult(match.id, e.target.value, match.awayScore)} />
-                <input type="number" placeholder="gols fora" defaultValue={match.awayScore ?? ""} onBlur={(e) => updateMatchResult(match.id, match.homeScore, e.target.value)} />
-                {allowDelete && <button className="delete-btn" onClick={() => deleteMatch(match.id)}>🗑️</button>}
+              <span>vs</span>
+              <div className="team-with-flag">
+                <Flag teamName={match.awayTeam} size={28} />
+                <strong>{match.awayTeam}</strong>
+              </div>
+              <div className="match-datetime">
+                {match.startTime && !Number.isNaN(new Date(match.startTime).getTime())
+                  ? `${new Date(match.startTime).toLocaleDateString("pt-BR")} ${new Date(match.startTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Data invalida"}
               </div>
             </div>
-          ))}
-        </div>
+            <div className="score-edit">
+              <input
+                type="number"
+                min="0"
+                placeholder="gols casa"
+                defaultValue={match.homeScore ?? ""}
+                onBlur={(event) => updateMatchResult(match.id, event.target.value, match.awayScore ?? "")}
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="gols fora"
+                defaultValue={match.awayScore ?? ""}
+                onBlur={(event) => updateMatchResult(match.id, match.homeScore ?? "", event.target.value)}
+              />
+              {allowDelete && (
+                <button className="delete-btn" onClick={() => deleteMatch(match.id)}>
+                  Excluir
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
     <div className="admin-panel">
-      <h1 className="admin-panel-title">🔧 Painel do Administrador</h1>
+      <h1 className="admin-panel-title">Painel do Administrador</h1>
       {message && <div className="admin-message">{message}</div>}
+
       <div className="admin-tabs">
-        <button className={activeTab === "groups" ? "active" : ""} onClick={() => setActiveTab("groups")}>📋 Fase de Grupos</button>
-        {/* FUTURO: <button className={activeTab === "knockout" ? "active" : ""} onClick={() => setActiveTab("knockout")}>🏆 Mata‑Mata</button> */}
-        <button className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>⚙️ Configurações</button>
-        <button className={activeTab === "users" ? "active" : ""} onClick={() => setActiveTab("users")}>👥 Usuários</button>
+        <button className={activeTab === "groups" ? "active" : ""} onClick={() => setActiveTab("groups")}>
+          Fase de grupos
+        </button>
+        <button className={activeTab === "settings" ? "active" : ""} onClick={() => setActiveTab("settings")}>
+          Configuracoes
+        </button>
+        <button className={activeTab === "users" ? "active" : ""} onClick={() => setActiveTab("users")}>
+          Usuarios
+        </button>
       </div>
 
       {activeTab === "groups" && (
         <>
           <div className="admin-actions-bar">
-            <button onClick={createGroupStageMatches} className="btn-admin-primary">🏁 Criar 72 jogos da fase de grupos</button>
+            <button onClick={createGroupStageMatches} className="btn-admin-primary">
+              Criar 72 jogos da fase de grupos
+            </button>
             <label className="btn-admin-secondary">
-              📂 Importar jogos (JSON)
-              <input type="file" accept=".json" onChange={importMatchesFromJSON} disabled={importing} style={{ display: "none" }} />
+              Importar jogos (JSON)
+              <input
+                type="file"
+                accept=".json"
+                onChange={importMatchesFromJSON}
+                disabled={importing}
+                style={{ display: "none" }}
+              />
             </label>
-            {importing && <span>⏳ Importando...</span>}
+            {importing && <span>Importando...</span>}
           </div>
-          <MatchList matches={groupMatches} roundTitle="📋 Jogos da Fase de Grupos" allowDelete />
+          <MatchList matches={groupMatches} roundTitle="Jogos da fase de grupos" allowDelete />
         </>
       )}
 
-      {/* FUTURO: seção de mata‑mata removida */}
-
       {activeTab === "settings" && (
         <div className="admin-section settings-grid">
-          <h2>⚙️ Configuração de Pontuação</h2>
+          <h2>Configuracao de pontuacao</h2>
           <p className="settings-description">Defina os pontos para cada tipo de acerto.</p>
-          <div className="scoring-category"><h3>📌 Fase de grupos (por jogo)</h3>
-            <div className="scoring-row"><label>Placar exato:</label><input type="number" value={scoring.exactScore} onChange={e => setScoring({...scoring, exactScore: parseInt(e.target.value)})} /><span className="hint">pontos</span></div>
-            <div className="scoring-row"><label>Resultado correto (vitória/empate):</label><input type="number" value={scoring.correctResult} onChange={e => setScoring({...scoring, correctResult: parseInt(e.target.value)})} /><span className="hint">pontos</span></div>
+
+          <div className="scoring-category">
+            <h3>Fase de grupos</h3>
+            <div className="scoring-row">
+              <label>Placar exato:</label>
+              <input
+                type="number"
+                min="0"
+                value={scoring.exactScore}
+                onChange={(event) => setScoring({ ...scoring, exactScore: Number(event.target.value) || 0 })}
+              />
+            </div>
+            <div className="scoring-row">
+              <label>Resultado correto:</label>
+              <input
+                type="number"
+                min="0"
+                value={scoring.correctResult}
+                onChange={(event) => setScoring({ ...scoring, correctResult: Number(event.target.value) || 0 })}
+              />
+            </div>
           </div>
-          <div className="scoring-category"><h3>🏆 Classificação dos grupos</h3>
-            <div className="scoring-row"><label>Acertar os dois classificados (sem ordem):</label><input type="number" value={scoring.twoCorrectClassified} onChange={e => setScoring({...scoring, twoCorrectClassified: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Acertar apenas um classificado:</label><input type="number" value={scoring.oneCorrectClassified} onChange={e => setScoring({...scoring, oneCorrectClassified: parseInt(e.target.value)})} /></div>
-            <div className="scoring-row"><label>Bônus por ordem correta (1º e 2º lugares):</label><input type="number" value={scoring.correctOrderBonus} onChange={e => setScoring({...scoring, correctOrderBonus: parseInt(e.target.value)})} /></div>
+
+          <div className="scoring-category">
+            <h3>Classificacao dos grupos</h3>
+            <div className="scoring-row">
+              <label>Dois classificados certos:</label>
+              <input
+                type="number"
+                min="0"
+                value={scoring.twoCorrectClassified}
+                onChange={(event) => setScoring({ ...scoring, twoCorrectClassified: Number(event.target.value) || 0 })}
+              />
+            </div>
+            <div className="scoring-row">
+              <label>Um classificado certo:</label>
+              <input
+                type="number"
+                min="0"
+                value={scoring.oneCorrectClassified}
+                onChange={(event) => setScoring({ ...scoring, oneCorrectClassified: Number(event.target.value) || 0 })}
+              />
+            </div>
+            <div className="scoring-row">
+              <label>Bonus por ordem correta:</label>
+              <input
+                type="number"
+                min="0"
+                value={scoring.correctOrderBonus}
+                onChange={(event) => setScoring({ ...scoring, correctOrderBonus: Number(event.target.value) || 0 })}
+              />
+            </div>
           </div>
-          {/* FUTURO: seções de mata‑mata e bônus serão adicionadas */}
+
           <div className="scoring-actions">
-            <button onClick={saveScoring} className="btn-admin-secondary">💾 Salvar todas as configurações</button>
-            <button onClick={calculateFullRanking} className="btn-admin-primary">🏆 Calcular pontuação TOTAL</button>
+            <button onClick={saveScoring} className="btn-admin-secondary">
+              Salvar configuracoes
+            </button>
+            <button onClick={calculateFullRanking} className="btn-admin-primary">
+              Recalcular ranking
+            </button>
           </div>
         </div>
       )}
 
       {activeTab === "users" && (
         <div className="admin-section users-section">
-          <h2>👥 Usuários cadastrados</h2>
+          <h2>Usuarios cadastrados</h2>
           <div className="users-table-responsive">
             <table className="admin-users-table">
               <thead>
-                <tr><th>Nome</th><th>E-mail</th><th>Palpites (jogos)</th><th>Último palpite</th></tr>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Palpites</th>
+                </tr>
               </thead>
               <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td>{u.displayName || "—"}</td>
-                    <td>{u.email || "—"}</td>
-                    <td className={u.predictionsCount > 0 ? "has-bets" : "no-bets"}>{u.predictionsCount}</td>
-                    <td>{u.lastPredictionDate ? new Date(u.lastPredictionDate).toLocaleDateString() : "—"}</td>
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td>{user.displayName || "-"}</td>
+                    <td>{user.email || "-"}</td>
+                    <td className={user.predictionsCount > 0 ? "has-bets" : "no-bets"}>
+                      {user.predictionsCount}
+                    </td>
                   </tr>
                 ))}
               </tbody>
